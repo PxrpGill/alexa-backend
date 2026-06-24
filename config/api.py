@@ -3,6 +3,7 @@ from apps.branches.api import router as branches_router
 from apps.doctors.api import router as doctors_router
 from apps.services.api import router as services_router
 from apps.blog.api import router as blog_router
+from apps.promotions.api import router as promotions_router
 
 api = NinjaAPI(
     title="Alexa Dental API",
@@ -14,3 +15,4 @@ api.add_router("/branches/", branches_router)
 api.add_router("/doctors/", doctors_router)
 api.add_router("/services/", services_router)
 api.add_router("/blog/", blog_router)
+api.add_router("/promotions/", promotions_router)
