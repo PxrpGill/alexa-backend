@@ -1,5 +1,4 @@
 from django.contrib import admin
-from apps.users.mixins import BranchFilterMixin
 from .models import ServiceCategory, Service, BranchService
 
 
