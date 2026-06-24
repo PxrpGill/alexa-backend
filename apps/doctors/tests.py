@@ -71,3 +71,17 @@ class DoctorAPITest(TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data['last_name'], 'Иванов')
+
+    def test_inactive_doctor_returns_404(self):
+        inactive = Doctor.objects.create(
+            first_name='Игорь', last_name='Сидоров', patronymic='Петрович', is_active=False
+        )
+        response = self.client.get(f'/api/v1/doctors/{inactive.id}/')
+        self.assertEqual(response.status_code, 404)
+
+    def test_filter_excludes_inactive_doctorbranch(self):
+        DoctorBranch.objects.create(doctor=self.doctor2, branch=self.branch, is_active=False)
+        response = self.client.get(f'/api/v1/doctors/?branch_id={self.branch.id}')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 0)
