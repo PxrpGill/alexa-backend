@@ -53,3 +53,6 @@ class BranchService(models.Model):
         unique_together = ('branch', 'service')
         verbose_name = 'Услуга в филиале'
         verbose_name_plural = 'Услуги в филиалах'
+
+    def __str__(self):
+        return f"{self.service} @ {self.branch}"
