@@ -1,26 +1,46 @@
-.PHONY: up down logs shell test test-app migrate check
+DEV  = docker-compose -f docker/dev/docker-compose.yml
+PROD = docker-compose -f docker/prod/docker-compose.yml
 
-up:
-	docker-compose up -d
+.PHONY: dev-up dev-down dev-logs dev-shell dev-test dev-test-app dev-migrate dev-check \
+        prod-up prod-down prod-logs prod-migrate
 
-down:
-	docker-compose down
+# --- Dev ---
 
-logs:
-	docker-compose logs -f web
+dev-up:
+	$(DEV) up -d
 
-shell:
-	docker-compose exec web python manage.py shell_plus
+dev-down:
+	$(DEV) down
 
-test:
-	docker-compose exec web python manage.py test -v 2 --keepdb
+dev-logs:
+	$(DEV) logs -f web
 
-test-app:
-	docker-compose exec web python manage.py test apps.$(APP) -v 2 --keepdb
+dev-shell:
+	$(DEV) exec web python manage.py shell
 
-migrate:
-	docker-compose exec web python manage.py makemigrations $(APP)
-	docker-compose exec web python manage.py migrate
+dev-test:
+	$(DEV) exec web python manage.py test -v 2 --keepdb
 
-check:
-	docker-compose exec web python manage.py check
+dev-test-app:
+	$(DEV) exec web python manage.py test apps.$(APP) -v 2 --keepdb
+
+dev-migrate:
+	$(DEV) exec web python manage.py makemigrations $(APP)
+	$(DEV) exec web python manage.py migrate
+
+dev-check:
+	$(DEV) exec web python manage.py check
+
+# --- Prod ---
+
+prod-up:
+	$(PROD) up -d
+
+prod-down:
+	$(PROD) down
+
+prod-logs:
+	$(PROD) logs -f web
+
+prod-migrate:
+	$(PROD) exec -T web python manage.py migrate --noinput

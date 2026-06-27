@@ -13,18 +13,21 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
   web:
-    build: .
+    build:
+      context: ../..
+      dockerfile: docker/dev/Dockerfile
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
-      - .:/app
+      - ../..:/app
     ports:
       - "8000:8000"
-    depends_on:
-      - db
     env_file:
-      - .env
+      - .env.dev
     environment:
       DB_HOST: db
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+    depends_on:
+      - db
 
 volumes:
   postgres_data:

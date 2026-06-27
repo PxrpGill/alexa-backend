@@ -9,3 +9,5 @@ media/
 staticfiles/
 .DS_Store
 *.sqlite3
+docker/dev/.env.dev
+docker/prod/.env.prod
