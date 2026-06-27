@@ -3,16 +3,18 @@ from typing import Optional
 from .models import ServiceCategory, BranchService
 from .schemas import ServiceCategorySchema, ServiceWithPriceSchema
 
-router = Router(tags=['Services'])
+router = Router(tags=['Услуги'])
 
 
 @router.get('/categories/', response=list[ServiceCategorySchema])
 def list_categories(request):
+    """Список категорий услуг."""
     return ServiceCategory.objects.all()
 
 
 @router.get('/', response=list[ServiceWithPriceSchema])
 def list_services(request, branch_id: Optional[int] = None, category: Optional[str] = None):
+    """Услуги с ценами. Фильтры: ?branch_id=<id>, ?category=<slug>."""
     qs = BranchService.objects.filter(
         is_active=True, service__is_active=True,
     ).select_related('service', 'service__category')

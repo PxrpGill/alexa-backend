@@ -7,7 +7,8 @@ from apps.promotions.api import router as promotions_router
 from apps.appointments.api import router as appointments_router
 
 api = NinjaAPI(
-    title="Alexa Dental API",
+    title="API стоматологической клиники Алекса",
+    description="Публичный REST API для получения информации о филиалах, врачах, услугах, акциях и блоге клиники Алекса. Запись на приём — POST /appointments/.",
     version="1.0.0",
     docs_url="/docs",
 )

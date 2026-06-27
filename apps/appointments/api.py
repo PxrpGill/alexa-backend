@@ -4,11 +4,12 @@ from .models import Appointment
 from .schemas import AppointmentCreateSchema, AppointmentResponseSchema
 from apps.branches.models import Branch
 
-router = Router(tags=['Appointments'])
+router = Router(tags=['Запись на приём'])
 
 
 @router.post('/', response={201: AppointmentResponseSchema})
 def create_appointment(request, payload: AppointmentCreateSchema):
+    """Создать запись на приём. Возвращает созданную запись (201)."""
     branch = get_object_or_404(Branch, id=payload.branch_id, is_active=True)
     appt = Appointment.objects.create(
         patient_name=payload.patient_name,

@@ -5,11 +5,12 @@ from django.db.models import Q
 from .models import Promotion
 from .schemas import PromotionSchema
 
-router = Router(tags=['Promotions'])
+router = Router(tags=['Акции'])
 
 
 @router.get('/', response=list[PromotionSchema])
 def list_promotions(request, branch_id: Optional[int] = None):
+    """Активные акции на сегодняшнюю дату. Фильтр: ?branch_id=<id>."""
     today = timezone.localdate()
     qs = Promotion.objects.filter(
         is_active=True,
