@@ -12,6 +12,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
   web:
     build:
       context: ../..
@@ -28,6 +33,23 @@ services:
       DJANGO_SETTINGS_MODULE: config.settings.dev
     depends_on:
       - db
+      - redis
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: docker/dev/Dockerfile
+    command: celery -A config worker -l info
+    volumes:
+      - ../..:/app
+    env_file:
+      - .env.dev
+    environment:
+      DB_HOST: db
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+    depends_on:
+      - db
+      - redis
 
 volumes:
   postgres_data:

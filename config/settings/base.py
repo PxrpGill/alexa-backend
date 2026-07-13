@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 from decouple import config
 
@@ -110,6 +111,11 @@ CORS_ALLOWED_ORIGINS = config(
     default='http://localhost:3000',
     cast=lambda v: [s.strip() for s in v.split(',')]
 )
+
+CELERY_BROKER_URL = config('CELERY_BROKER_URL', default='redis://localhost:6379/0')
+CELERY_TASK_IGNORE_RESULT = True
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+CELERY_TASK_ALWAYS_EAGER = 'test' in sys.argv
 
 CKEDITOR_5_CONFIGS = {
     'default': {
