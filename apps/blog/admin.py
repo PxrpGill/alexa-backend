@@ -19,6 +19,12 @@ class BlogPostAdmin(admin.ModelAdmin):
     readonly_fields = ['created_at']
     fieldsets = (
         (None, {'fields': ('title', 'slug', 'category', 'status')}),
-        ('Контент', {'fields': ('preview_poster', 'poster', 'description', 'content')}),
+        ('Контент', {
+            'fields': (
+                'preview_poster', 'preview_poster_mobile',
+                'poster', 'poster_mobile',
+                'description', 'content',
+            ),
+        }),
         ('Даты', {'fields': ('published_at', 'created_at')}),
     )

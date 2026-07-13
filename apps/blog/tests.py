@@ -1,6 +1,9 @@
-from django.test import TestCase, Client
+import shutil
+import tempfile
+from django.test import TestCase, Client, override_settings
 from django.utils import timezone
 from apps.blog.models import BlogCategory, BlogPost
+from apps.common.test_utils import make_test_image
 
 
 class BlogModelTest(TestCase):
@@ -101,3 +104,44 @@ class BlogPaginationTest(TestCase):
         data = response.json()
         self.assertEqual(len(data['items']), 5)
         self.assertEqual(data['totalPages'], 1)
+
+
+class BlogPostPictureFormatAPITest(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.media_root = tempfile.mkdtemp()
+        cls.override = override_settings(MEDIA_ROOT=cls.media_root)
+        cls.override.enable()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.override.disable()
+        shutil.rmtree(cls.media_root, ignore_errors=True)
+        super().tearDownClass()
+
+    def setUp(self):
+        self.client = Client()
+        category = BlogCategory.objects.create(name='Новости', slug='news-pf')
+        self.post = BlogPost.objects.create(
+            title='С картинками', slug='with-images', category=category,
+            description='Анонс', content='<p>Текст</p>',
+            status=BlogPost.Status.PUBLISHED, published_at=timezone.now(),
+            preview_poster=make_test_image(name='preview.jpg'),
+            preview_poster_mobile=make_test_image(name='preview_m.jpg'),
+            poster=make_test_image(name='poster.jpg'),
+        )
+
+    def test_preview_poster_matches_picture_format_shape(self):
+        response = self.client.get('/api/v1/blog/with-images/')
+        self.assertEqual(response.status_code, 200)
+        preview = response.json()['previewPoster']
+        self.assertTrue(preview['original']['src'].endswith('.jpg'))
+        self.assertTrue(preview['original']['mobile'].endswith('.jpg'))
+        self.assertTrue(preview['webp']['src'].endswith('.webp'))
+
+    def test_poster_without_mobile_has_none_mobile(self):
+        response = self.client.get('/api/v1/blog/with-images/')
+        poster = response.json()['poster']
+        self.assertIsNone(poster['original']['mobile'])
+        self.assertIsNone(poster['webp']['mobile'])

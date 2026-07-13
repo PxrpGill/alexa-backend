@@ -1,6 +1,7 @@
 from ninja import Schema
 from datetime import datetime
 from typing import Optional
+from apps.common.schemas import PictureFormatSchema, build_picture_format
 
 
 class BlogCategorySchema(Schema):
@@ -14,18 +15,18 @@ class BlogPostListSchema(Schema):
     title: str
     slug: str
     category: BlogCategorySchema
-    previewPoster: Optional[str] = None
-    poster: Optional[str] = None
+    previewPoster: Optional[PictureFormatSchema] = None
+    poster: Optional[PictureFormatSchema] = None
     description: str
     publishDate: Optional[datetime] = None
 
     @staticmethod
     def resolve_previewPoster(obj):
-        return obj.preview_poster.url if obj.preview_poster else None
+        return build_picture_format(obj.preview_poster, obj.preview_poster_mobile)
 
     @staticmethod
     def resolve_poster(obj):
-        return obj.poster.url if obj.poster else None
+        return build_picture_format(obj.poster, obj.poster_mobile)
 
     @staticmethod
     def resolve_publishDate(obj):

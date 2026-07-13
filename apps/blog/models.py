@@ -1,5 +1,6 @@
 from django.db import models
 from django_ckeditor_5.fields import CKEditor5Field
+from apps.common.mixins import ImageVariantsMixin
 
 
 class BlogCategory(models.Model):
@@ -14,7 +15,7 @@ class BlogCategory(models.Model):
         return self.name
 
 
-class BlogPost(models.Model):
+class BlogPost(ImageVariantsMixin, models.Model):
     class Status(models.TextChoices):
         DRAFT = 'draft', 'Черновик'
         PUBLISHED = 'published', 'Опубликовано'
@@ -26,7 +27,13 @@ class BlogPost(models.Model):
         related_name='posts', verbose_name='Категория',
     )
     preview_poster = models.ImageField(upload_to='blog/', blank=True, verbose_name='Превью постера')
+    preview_poster_mobile = models.ImageField(
+        upload_to='blog/', blank=True, verbose_name='Превью постера (мобильная версия)',
+    )
     poster = models.ImageField(upload_to='blog/', blank=True, verbose_name='Постер')
+    poster_mobile = models.ImageField(
+        upload_to='blog/', blank=True, verbose_name='Постер (мобильная версия)',
+    )
     description = models.TextField(verbose_name='Описание')
     content = CKEditor5Field(config_name='blog_content', verbose_name='Контент')
     status = models.CharField(
@@ -34,6 +41,8 @@ class BlogPost(models.Model):
     )
     published_at = models.DateTimeField(null=True, blank=True, verbose_name='Дата публикации')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Создано')
+
+    IMAGE_VARIANT_FIELDS = ['preview_poster', 'preview_poster_mobile', 'poster', 'poster_mobile']
 
     class Meta:
         verbose_name = 'Статья'
