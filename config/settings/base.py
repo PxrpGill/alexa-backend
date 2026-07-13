@@ -123,7 +123,22 @@ CKEDITOR_5_CONFIGS = {
                 'undo', 'redo',
             ],
         },
-    }
+    },
+    'blog_content': {
+        'toolbar': {
+            'items': [
+                'bold', 'italic', 'underline', '|',
+                'bulletedList', 'numberedList', '|',
+                'heading',
+            ],
+        },
+        'heading': {
+            'options': [
+                {'model': 'paragraph', 'title': 'Paragraph', 'class': 'ck-heading_paragraph'},
+                {'model': 'heading2', 'view': 'h2', 'title': 'Heading 2', 'class': 'ck-heading_heading2'},
+            ],
+        },
+    },
 }
 
 CKEDITOR_5_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'

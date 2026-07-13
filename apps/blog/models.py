@@ -25,9 +25,10 @@ class BlogPost(models.Model):
         BlogCategory, on_delete=models.PROTECT,
         related_name='posts', verbose_name='Категория',
     )
-    cover = models.ImageField(upload_to='blog/', blank=True, verbose_name='Обложка')
-    excerpt = models.TextField(verbose_name='Краткое описание')
-    content = CKEditor5Field(config_name='default', verbose_name='Контент')
+    preview_poster = models.ImageField(upload_to='blog/', blank=True, verbose_name='Превью постера')
+    poster = models.ImageField(upload_to='blog/', blank=True, verbose_name='Постер')
+    description = models.TextField(verbose_name='Описание')
+    content = CKEditor5Field(config_name='blog_content', verbose_name='Контент')
     status = models.CharField(
         max_length=10, choices=Status.choices, default=Status.DRAFT, verbose_name='Статус',
     )

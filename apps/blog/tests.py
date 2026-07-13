@@ -10,7 +10,7 @@ class BlogModelTest(TestCase):
             title='Тест',
             slug='test',
             category=self.category,
-            excerpt='Краткое описание',
+            description='Краткое описание',
             content='<p>Полный текст</p>',
             status=BlogPost.Status.PUBLISHED,
             published_at=timezone.now(),
@@ -29,26 +29,75 @@ class BlogAPITest(TestCase):
         category = BlogCategory.objects.create(name='Новости', slug='news')
         self.published = BlogPost.objects.create(
             title='Опубликовано', slug='published', category=category,
-            excerpt='Анонс', content='<p>Текст</p>',
+            description='Анонс', content='<p>Текст</p>',
             status=BlogPost.Status.PUBLISHED, published_at=timezone.now(),
         )
         BlogPost.objects.create(
             title='Черновик', slug='draft', category=category,
-            excerpt='Анонс', content='<p>Текст</p>',
+            description='Анонс', content='<p>Текст</p>',
             status=BlogPost.Status.DRAFT,
         )
 
     def test_list_returns_only_published(self):
         response = self.client.get('/api/v1/blog/')
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.json()), 1)
-        self.assertEqual(response.json()[0]['title'], 'Опубликовано')
+        data = response.json()
+        self.assertEqual(data['total'], 1)
+        self.assertEqual(len(data['items']), 1)
+        self.assertEqual(data['items'][0]['title'], 'Опубликовано')
+
+    def test_list_response_uses_camel_case_fields(self):
+        response = self.client.get('/api/v1/blog/')
+        item = response.json()['items'][0]
+        for key in ('previewPoster', 'poster', 'description', 'publishDate'):
+            self.assertIn(key, item)
 
     def test_get_post_by_slug(self):
         response = self.client.get('/api/v1/blog/published/')
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()['slug'], 'published')
+        data = response.json()
+        self.assertEqual(data['slug'], 'published')
+        self.assertIn('content', data)
 
     def test_get_draft_returns_404(self):
         response = self.client.get('/api/v1/blog/draft/')
         self.assertEqual(response.status_code, 404)
+
+
+class BlogPaginationTest(TestCase):
+    def setUp(self):
+        self.client = Client()
+        category = BlogCategory.objects.create(name='Новости', slug='news')
+        for i in range(5):
+            BlogPost.objects.create(
+                title=f'Пост {i}', slug=f'post-{i}', category=category,
+                description='Анонс', content='<p>Текст</p>',
+                status=BlogPost.Status.PUBLISHED, published_at=timezone.now(),
+            )
+
+    def test_default_pagination(self):
+        response = self.client.get('/api/v1/blog/')
+        data = response.json()
+        self.assertEqual(data['total'], 5)
+        self.assertEqual(data['perPage'], 10)
+        self.assertEqual(data['totalPages'], 1)
+        self.assertEqual(len(data['items']), 5)
+
+    def test_per_page_slices_results(self):
+        response = self.client.get('/api/v1/blog/?perPage=2')
+        data = response.json()
+        self.assertEqual(len(data['items']), 2)
+        self.assertEqual(data['totalPages'], 3)
+        self.assertEqual(data['page'], 1)
+
+    def test_page_param_returns_next_slice(self):
+        response = self.client.get('/api/v1/blog/?perPage=2&page=2')
+        data = response.json()
+        self.assertEqual(len(data['items']), 2)
+        self.assertEqual(data['page'], 2)
+
+    def test_all_pages_ignores_pagination(self):
+        response = self.client.get('/api/v1/blog/?allPages=true&perPage=2')
+        data = response.json()
+        self.assertEqual(len(data['items']), 5)
+        self.assertEqual(data['totalPages'], 1)
