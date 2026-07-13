@@ -4,6 +4,7 @@ django-jazzmin==3.0.1
 django-ckeditor-5==0.2.15
 psycopg2-binary==2.9.10
 Pillow==10.4.0
+pillow-avif-plugin==1.4.6
 python-decouple==3.8
 django-cors-headers==4.6.0
 gunicorn==23.0.0

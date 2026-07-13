@@ -145,9 +145,9 @@ class GenerateImageVariantsTest(TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp_dir, ignore_errors=True)
 
-    def _save_source(self, name='doctors/photo.jpg', img_format='JPEG', mode='RGB'):
+    def _save_source(self, name='doctors/photo.jpg', img_format='JPEG', mode='RGB', color='red'):
         buffer = BytesIO()
-        Image.new(mode, (10, 10), color='red').save(buffer, format=img_format)
+        Image.new(mode, (10, 10), color=color).save(buffer, format=img_format)
         buffer.seek(0)
         return self.storage.save(name, ContentFile(buffer.read()))
 
@@ -161,7 +161,12 @@ class GenerateImageVariantsTest(TestCase):
         self.assertTrue(self.storage.exists('doctors/photo.avif'))
 
     def test_preserves_transparency_for_png(self):
-        saved_name = self._save_source(name='icons/icon.png', img_format='PNG', mode='RGBA')
+        # Полностью непрозрачный цвет здесь не подходит: и Pillow, и libwebp
+        # оптимизируют такой RGBA обратно в RGB, т.к. альфа-канал не несёт
+        # информации — тест должен использовать реально прозрачный пиксель.
+        saved_name = self._save_source(
+            name='icons/icon.png', img_format='PNG', mode='RGBA', color=(255, 0, 0, 128),
+        )
         field_file = FieldFileStub(self.storage, saved_name)
 
         generate_image_variants(field_file)
