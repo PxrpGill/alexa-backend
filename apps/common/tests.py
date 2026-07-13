@@ -2,15 +2,18 @@ import os
 import shutil
 import tempfile
 from io import BytesIO
+from unittest.mock import patch
 
 from django.core.files.base import ContentFile
 from django.core.files.storage import FileSystemStorage
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from PIL import Image
 
 from apps.common.images import generate_image_variants
 from apps.common.schemas import build_picture_format
+from apps.common.tasks import generate_image_variants_task
 from apps.common.test_utils import FieldFileStub, make_test_image
+from apps.doctors.models import Doctor
 
 
 class GenerateImageVariantsTest(TestCase):
@@ -109,3 +112,47 @@ class BuildPictureFormatTest(TestCase):
 
         self.assertIsNone(result.webp)
         self.assertIsNone(result.avif)
+
+
+class GenerateImageVariantsTaskTest(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.media_root = tempfile.mkdtemp()
+        cls.override = override_settings(MEDIA_ROOT=cls.media_root)
+        cls.override.enable()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.override.disable()
+        shutil.rmtree(cls.media_root, ignore_errors=True)
+        super().tearDownClass()
+
+    def test_task_loads_instance_and_generates_variants_for_field(self):
+        doctor = Doctor.objects.create(
+            first_name='Иван', last_name='Иванов', patronymic='Иванович',
+            photo=make_test_image(name='photo.jpg'),
+        )
+
+        with patch('apps.common.tasks.generate_image_variants') as mocked:
+            generate_image_variants_task('doctors', 'Doctor', doctor.pk, 'photo')
+
+        mocked.assert_called_once()
+        called_field_file = mocked.call_args[0][0]
+        self.assertEqual(called_field_file.name, doctor.photo.name)
+
+    def test_task_is_noop_for_missing_instance(self):
+        with patch('apps.common.tasks.generate_image_variants') as mocked:
+            generate_image_variants_task('doctors', 'Doctor', 999999, 'photo')
+
+        mocked.assert_not_called()
+
+    def test_task_is_noop_for_empty_field(self):
+        doctor = Doctor.objects.create(
+            first_name='Пётр', last_name='Петров', patronymic='Петрович',
+        )
+
+        with patch('apps.common.tasks.generate_image_variants') as mocked:
+            generate_image_variants_task('doctors', 'Doctor', doctor.pk, 'photo')
+
+        mocked.assert_not_called()
