@@ -1,5 +1,8 @@
-from django.test import TestCase, Client
+import shutil
+import tempfile
+from django.test import TestCase, Client, override_settings
 from apps.branches.models import Branch
+from apps.common.test_utils import make_test_image
 from apps.doctors.models import Doctor, Specialization, DoctorBranch
 
 
@@ -85,3 +88,49 @@ class DoctorAPITest(TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(len(data), 0)
+
+
+class DoctorPictureFormatAPITest(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.media_root = tempfile.mkdtemp()
+        cls.override = override_settings(MEDIA_ROOT=cls.media_root)
+        cls.override.enable()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.override.disable()
+        shutil.rmtree(cls.media_root, ignore_errors=True)
+        super().tearDownClass()
+
+    def setUp(self):
+        self.client = Client()
+        self.doctor = Doctor.objects.create(
+            first_name='Иван', last_name='Иванов', patronymic='Иванович',
+            is_active=True,
+            photo=make_test_image(name='photo.jpg'),
+            photo_mobile=make_test_image(name='photo_m.jpg'),
+        )
+        self.doctor_no_mobile = Doctor.objects.create(
+            first_name='Пётр', last_name='Петров', patronymic='Петрович',
+            is_active=True,
+            photo=make_test_image(name='photo2.jpg'),
+        )
+
+    def test_photo_field_matches_picture_format_shape(self):
+        response = self.client.get(f'/api/v1/doctors/{self.doctor.id}/')
+        self.assertEqual(response.status_code, 200)
+        photo = response.json()['photo']
+        self.assertTrue(photo['original']['src'].endswith('.jpg'))
+        self.assertTrue(photo['original']['mobile'].endswith('.jpg'))
+        self.assertTrue(photo['webp']['src'].endswith('.webp'))
+        self.assertTrue(photo['webp']['mobile'].endswith('.webp'))
+        self.assertTrue(photo['avif']['src'].endswith('.avif'))
+        self.assertTrue(photo['avif']['mobile'].endswith('.avif'))
+
+    def test_photo_without_mobile_has_none_mobile(self):
+        response = self.client.get(f'/api/v1/doctors/{self.doctor_no_mobile.id}/')
+        photo = response.json()['photo']
+        self.assertIsNone(photo['original']['mobile'])
+        self.assertIsNone(photo['webp']['mobile'])

@@ -1,5 +1,6 @@
 from django.db import models
 from django_ckeditor_5.fields import CKEditor5Field
+from apps.common.mixins import ImageVariantsMixin
 
 
 class Specialization(models.Model):
@@ -14,16 +15,22 @@ class Specialization(models.Model):
         return self.name
 
 
-class Doctor(models.Model):
+class Doctor(ImageVariantsMixin, models.Model):
     first_name = models.CharField(max_length=100, verbose_name='Имя')
     last_name = models.CharField(max_length=100, verbose_name='Фамилия')
     patronymic = models.CharField(max_length=100, verbose_name='Отчество')
     photo = models.ImageField(upload_to='doctors/', blank=True, null=True, verbose_name='Фото')
+    photo_mobile = models.ImageField(
+        upload_to='doctors/', blank=True, null=True,
+        verbose_name='Фото (мобильная версия)',
+    )
     bio = CKEditor5Field(blank=True, verbose_name='Биография', config_name='default')
     specializations = models.ManyToManyField(
         Specialization, blank=True, verbose_name='Специализации'
     )
     is_active = models.BooleanField(default=True, verbose_name='Активен')
+
+    IMAGE_VARIANT_FIELDS = ['photo', 'photo_mobile']
 
     class Meta:
         verbose_name = 'Врач'
