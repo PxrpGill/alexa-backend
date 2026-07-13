@@ -230,4 +230,5 @@ jazzmin обязан идти перед `django.contrib.admin`.
 SECRET_KEY, DEBUG, ALLOWED_HOSTS
 DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT
 CORS_ALLOWED_ORIGINS   # default: http://localhost:3000
+CELERY_BROKER_URL      # default: redis://localhost:6379/0
 ```
