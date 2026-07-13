@@ -1,6 +1,9 @@
-from django.test import TestCase, Client
+import shutil
+import tempfile
+from django.test import TestCase, Client, override_settings
 from decimal import Decimal
 from apps.branches.models import Branch
+from apps.common.test_utils import make_test_image
 from apps.services.models import ServiceCategory, Service, BranchService
 
 
@@ -75,3 +78,36 @@ class ServiceAPITest(TestCase):
         response = self.client.get(f'/api/v1/services/?branch_id={branch2.id}')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()), 0)
+
+
+class ServiceCategoryPictureFormatAPITest(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.media_root = tempfile.mkdtemp()
+        cls.override = override_settings(MEDIA_ROOT=cls.media_root)
+        cls.override.enable()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.override.disable()
+        shutil.rmtree(cls.media_root, ignore_errors=True)
+        super().tearDownClass()
+
+    def setUp(self):
+        self.client = Client()
+        self.category = ServiceCategory.objects.create(
+            name='Хирургия', slug='surgery-pf',
+            icon=make_test_image(name='icon.png', img_format='PNG', content_type='image/png'),
+            icon_mobile=make_test_image(name='icon_m.png', img_format='PNG', content_type='image/png'),
+        )
+
+    def test_icon_matches_picture_format_shape(self):
+        response = self.client.get('/api/v1/services/categories/')
+        self.assertEqual(response.status_code, 200)
+        category = next(c for c in response.json() if c['slug'] == 'surgery-pf')
+        icon = category['icon']
+        self.assertTrue(icon['original']['src'].endswith('.png'))
+        self.assertTrue(icon['original']['mobile'].endswith('.png'))
+        self.assertTrue(icon['webp']['src'].endswith('.webp'))
+        self.assertTrue(icon['avif']['src'].endswith('.avif'))

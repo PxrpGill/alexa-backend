@@ -1,12 +1,18 @@
 from django.db import models
 from django_ckeditor_5.fields import CKEditor5Field
+from apps.common.mixins import ImageVariantsMixin
 
 
-class ServiceCategory(models.Model):
+class ServiceCategory(ImageVariantsMixin, models.Model):
     name = models.CharField(max_length=255, verbose_name='Название')
     slug = models.SlugField(unique=True, verbose_name='Slug')
     icon = models.ImageField(upload_to='service_categories/', blank=True, verbose_name='Иконка')
+    icon_mobile = models.ImageField(
+        upload_to='service_categories/', blank=True, verbose_name='Иконка (мобильная версия)',
+    )
     order = models.PositiveIntegerField(default=0, verbose_name='Порядок')
+
+    IMAGE_VARIANT_FIELDS = ['icon', 'icon_mobile']
 
     class Meta:
         verbose_name = 'Категория услуг'
