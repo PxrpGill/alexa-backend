@@ -156,3 +156,38 @@ class GenerateImageVariantsTaskTest(TestCase):
             generate_image_variants_task('doctors', 'Doctor', doctor.pk, 'photo')
 
         mocked.assert_not_called()
+
+
+class ImageVariantsMixinEnqueueTest(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.media_root = tempfile.mkdtemp()
+        cls.override = override_settings(MEDIA_ROOT=cls.media_root)
+        cls.override.enable()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.override.disable()
+        shutil.rmtree(cls.media_root, ignore_errors=True)
+        super().tearDownClass()
+
+    def test_save_enqueues_task_for_each_nonempty_field(self):
+        with patch('apps.common.mixins.generate_image_variants_task') as mocked_task:
+            doctor = Doctor.objects.create(
+                first_name='Иван', last_name='Иванов', patronymic='Иванович',
+                photo=make_test_image(name='photo.jpg'),
+            )
+
+        mocked_task.delay.assert_called_once_with('doctors', 'Doctor', doctor.pk, 'photo')
+
+    def test_save_succeeds_even_if_enqueue_raises(self):
+        with patch('apps.common.mixins.generate_image_variants_task') as mocked_task:
+            mocked_task.delay.side_effect = Exception('брокер недоступен')
+            doctor = Doctor.objects.create(
+                first_name='Пётр', last_name='Петров', patronymic='Петрович',
+                photo=make_test_image(name='photo2.jpg'),
+            )
+
+        self.assertIsNotNone(doctor.pk)
+        self.assertTrue(Doctor.objects.filter(pk=doctor.pk).exists())
