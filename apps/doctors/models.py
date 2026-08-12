@@ -39,15 +39,3 @@ class Doctor(ImageVariantsMixin, models.Model):
 
     def __str__(self):
         return f"{self.last_name} {self.first_name} {self.patronymic}"
-
-
-class DoctorBranch(models.Model):
-    doctor = models.ForeignKey(Doctor, on_delete=models.CASCADE, verbose_name='Врач')
-    branch = models.ForeignKey('branches.Branch', on_delete=models.CASCADE, verbose_name='Филиал')
-    schedule = models.JSONField(default=dict, blank=True, verbose_name='Расписание')
-    is_active = models.BooleanField(default=True, verbose_name='Активен')
-
-    class Meta:
-        verbose_name = 'Врач в филиале'
-        verbose_name_plural = 'Врачи в филиалах'
-        unique_together = [('doctor', 'branch')]

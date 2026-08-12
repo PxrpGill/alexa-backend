@@ -12,10 +12,6 @@ class Promotion(ImageVariantsMixin, models.Model):
     )
     starts_at = models.DateField(verbose_name='Начало')
     ends_at = models.DateField(null=True, blank=True, verbose_name='Окончание')
-    branches = models.ManyToManyField(
-        'branches.Branch', blank=True,
-        related_name='promotions', verbose_name='Филиалы',
-    )
     is_active = models.BooleanField(default=True, verbose_name='Активна')
 
     IMAGE_VARIANT_FIELDS = ['banner', 'banner_mobile']

@@ -4,6 +4,14 @@ from typing import Optional
 from ninja import Schema
 
 
+class SuccessResponseMessageSchema(Schema):
+    message: str
+
+
+class ErrorResponseMessageSchema(Schema):
+    message: str
+
+
 class PictureFormatDataSchema(Schema):
     src: str
     mobile: Optional[str] = None

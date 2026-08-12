@@ -13,14 +13,6 @@ class User(AbstractUser):
         default=Role.BRANCH_MANAGER,
         verbose_name='Роль',
     )
-    branch = models.ForeignKey(
-        'branches.Branch',
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name='managers',
-        verbose_name='Филиал',
-    )
 
     class Meta:
         verbose_name = 'Пользователь'

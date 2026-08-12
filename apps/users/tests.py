@@ -10,16 +10,14 @@ class UserModelTest(TestCase):
             role=User.Role.SUPERADMIN,
         )
         self.assertEqual(user.role, User.Role.SUPERADMIN)
-        self.assertIsNone(user.branch)
 
-    def test_create_branch_manager_without_branch(self):
+    def test_create_branch_manager(self):
         user = User.objects.create_user(
             username='manager',
             password='testpass123',
             role=User.Role.BRANCH_MANAGER,
         )
         self.assertEqual(user.role, User.Role.BRANCH_MANAGER)
-        self.assertIsNone(user.branch)
 
     def test_str_representation(self):
         user = User.objects.create_user(
