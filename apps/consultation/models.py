@@ -20,6 +20,9 @@ class Consultation(models.Model):
         default=Branch.LANDYSHEVAYA,
         max_length=32,
     )
+    page_url = models.CharField(
+        verbose_name="Откуда сделана заявка", max_length=255, default="/", blank=True
+    )
     status = models.CharField(
         max_length=20,
         choices=Status.choices,

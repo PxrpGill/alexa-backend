@@ -1,3 +1,4 @@
+from django.http import HttpRequest
 from ninja import Router
 from .models import Appointment
 from .schemas import AppointmentCreateSchema
@@ -9,7 +10,7 @@ router = Router(tags=["Запись на приём"])
 @router.post(
     "/", response={201: SuccessResponseMessageSchema, 400: ErrorResponseMessageSchema}
 )
-def create_appointment(request, payload: AppointmentCreateSchema):
+def create_appointment(request: HttpRequest, payload: AppointmentCreateSchema):
     """Создать запись на приём. Возвращает созданную запись (201)."""
 
     try:
@@ -17,6 +18,11 @@ def create_appointment(request, payload: AppointmentCreateSchema):
             patient_name=payload.patient_name,
             patient_phone=payload.patient_phone,
             branch_name=payload.branch_name,
+            page_url=(
+                request.build_absolute_uri(payload.page_url)
+                if payload.page_url
+                else "/"
+            ),
         )
 
         return 201, {"message": "Запись на прием создана"}

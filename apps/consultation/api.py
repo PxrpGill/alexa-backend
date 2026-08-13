@@ -17,6 +17,11 @@ def create_appointment(request, payload: ConsultationCreateSchema):
             patient_name=payload.patient_name,
             patient_phone=payload.patient_phone,
             branch_name=payload.branch_name,
+            page_url=(
+                request.build_absolute_uri(payload.page_url)
+                if payload.page_url
+                else "/"
+            ),
         )
 
         return 201, {"message": "Запись дмс создана"}
