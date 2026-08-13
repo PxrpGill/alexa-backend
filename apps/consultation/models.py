@@ -24,6 +24,15 @@ class Consultation(models.Model):
         default=Status.NEW,
         verbose_name="Статус",
     )
+    is_ad_agreement = models.BooleanField(
+        default=False,
+        verbose_name="Согласие на получение рассылки рекламно-информационных материалов",
+        null=True,
+    )
+    is_privacy_agreement = models.BooleanField(
+        default=False,
+        verbose_name="Согласие на политику конфиденциальности",
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Создана")
 
     class Meta:

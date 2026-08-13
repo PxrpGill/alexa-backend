@@ -11,6 +11,8 @@ class DMSAdmin(admin.ModelAdmin):
         "status",
         "page_url",
         "created_at",
+        "is_ad_agreement",
+        "is_privacy_agreement",
     ]
     list_editable = ["status"]
     list_filter = ["status", "branch"]

@@ -25,6 +25,15 @@ class Appointment(models.Model):
         verbose_name="Статус",
     )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Создана")
+    is_ad_agreement = models.BooleanField(
+        default=False,
+        verbose_name="Согласие на получение рассылки рекламно-информационных материалов",
+        null=True,
+    )
+    is_privacy_agreement = models.BooleanField(
+        default=False,
+        verbose_name="Согласие на политику конфиденциальности",
+    )
 
     class Meta:
         verbose_name = "Запись на приём"

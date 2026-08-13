@@ -16,6 +16,11 @@ router = Router(tags=["Запись на приём"])
 def create_appointment(request, payload: ConsultationCreateSchema):
     """Создать запись ДМС. Возвращает созданную запись (201)."""
 
+    if not payload.is_privacy_agreement:
+        return 400, {
+            "message": "Невозможно создать заявку без согласия с политикой конфиденциальности"
+        }
+
     branch = get_object_or_404(BranchModel, slug=payload.branch_slug)
 
     try:
@@ -28,8 +33,10 @@ def create_appointment(request, payload: ConsultationCreateSchema):
                 else "/"
             ),
             branch=branch,
+            is_ad_agreement=payload.is_ad_agreement,
+            is_privacy_agreement=payload.is_privacy_agreement,
         )
 
-        return 201, {"message": "Запись дмс создана"}
+        return 201, {"message": "Запись на консультацию создана"}
     except Exception:
         return 400, {"message": "Некорректные данные при отправке"}
