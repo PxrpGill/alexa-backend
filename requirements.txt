@@ -10,3 +10,4 @@ django-cors-headers==4.6.0
 gunicorn==23.0.0
 celery==5.4.0
 redis==5.0.8
+pytils==0.4.4
