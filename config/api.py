@@ -14,10 +14,10 @@ api = NinjaAPI(
     docs_url="/docs",
 )
 
-api.add_router("/doctors/", doctors_router)
-api.add_router("/blog/", blog_router)
-api.add_router("/promotions/", promotions_router)
-api.add_router("/appointments/", appointments_router)
-api.add_router("/dms/", dms_router)
-api.add_router("/consultation/", consultation_router)
-api.add_router("/branches/", branch_router)
+api.add_router("/doctors", doctors_router)
+api.add_router("/blog", blog_router)
+api.add_router("/promotions", promotions_router)
+api.add_router("/appointments", appointments_router)
+api.add_router("/dms", dms_router)
+api.add_router("/consultation", consultation_router)
+api.add_router("/branches", branch_router)

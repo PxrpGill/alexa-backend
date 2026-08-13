@@ -7,7 +7,7 @@ from .schemas import PromotionSchema
 router = Router(tags=['Акции'])
 
 
-@router.get('/', response=list[PromotionSchema])
+@router.get('', response=list[PromotionSchema])
 def list_promotions(request):
     """Активные акции на сегодняшнюю дату."""
     today = timezone.localdate()
