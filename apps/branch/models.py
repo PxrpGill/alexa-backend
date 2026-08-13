@@ -4,6 +4,7 @@ from django.utils.text import slugify
 from django.db.models import Q
 from pytils.translit import slugify as t_slugify
 
+
 # Create your models here.
 class BranchModel(models.Model):
     id = models.UUIDField(
@@ -14,7 +15,10 @@ class BranchModel(models.Model):
         editable=False,
     )
     slug = models.SlugField(
-        unique=True, verbose_name="Текстовый идентификатор филиала", blank=True
+        unique=True,
+        verbose_name="Текстовый идентификатор филиала",
+        blank=True,
+        editable=False,
     )
     name = models.CharField(
         max_length=255, unique=True, editable=True, verbose_name="Название филиала"
