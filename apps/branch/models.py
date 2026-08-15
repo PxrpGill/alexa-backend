@@ -18,7 +18,6 @@ class BranchModel(models.Model):
         unique=True,
         verbose_name="Текстовый идентификатор филиала",
         blank=True,
-        editable=False,
     )
     name = models.CharField(
         max_length=255, unique=True, editable=True, verbose_name="Название филиала"
