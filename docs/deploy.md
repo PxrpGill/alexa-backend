@@ -88,7 +88,7 @@ usermod -aG docker deploy
 ### 4.3. Файрвол (UFW)
 
 ```bash
-ufw allow OpenSSH
+  c
 ufw allow 80/tcp
 ufw allow 443/tcp
 ufw enable
@@ -113,7 +113,7 @@ sudo chown deploy:deploy /opt/alexa-backend
 
 Генерируем **на локальной машине** (там, где GitHub Actions будет «сидеть»):
 
-```bash
+```bashc
 ssh-keygen -t ed25519 -C "gh-actions-deploy" -f ~/.ssh/gh_actions_key
 ssh-copy-id -i ~/.ssh/gh_actions_key.pub deploy@<IP_сервера>
 ```
