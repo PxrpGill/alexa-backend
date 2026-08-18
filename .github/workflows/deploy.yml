@@ -56,9 +56,15 @@ jobs:
           envs: GHCR_TOKEN,GHCR_USER
           script: |
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            git config --global --add safe.directory /opt/alexa-backend || true
+            if command -v docker-compose >/dev/null 2>&1; then
+              DC() { docker-compose "$@"; }
+            else
+              DC() { docker compose "$@"; }
+            fi
             cd /opt/alexa-backend
             git pull origin main
-            docker-compose -f docker/prod/docker-compose.yml pull web
-            docker-compose -f docker/prod/docker-compose.yml up -d
-            docker-compose -f docker/prod/docker-compose.yml exec -T web python manage.py migrate --noinput
-            docker-compose -f docker/prod/docker-compose.yml exec -T web python manage.py collectstatic --noinput
+            DC -f docker/prod/docker-compose.yml pull web
+            DC -f docker/prod/docker-compose.yml up -d
+            DC -f docker/prod/docker-compose.yml exec -T web python manage.py migrate --noinput
+            DC -f docker/prod/docker-compose.yml exec -T web python manage.py collectstatic --noinput
