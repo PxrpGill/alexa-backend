@@ -12,7 +12,7 @@ router = Router(tags=["Запись на приём"])
 
 
 @router.post(
-    "/", response={201: SuccessResponseMessageSchema, 400: ErrorResponseMessageSchema}
+    "", response={201: SuccessResponseMessageSchema, 400: ErrorResponseMessageSchema}
 )
 def create_appointment(request: HttpRequest, payload: AppointmentCreateSchema):
     """Создать запись на приём. Возвращает созданную запись (201)."""
