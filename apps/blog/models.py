@@ -1,6 +1,7 @@
 from django.db import models
 from django_ckeditor_5.fields import CKEditor5Field
 from apps.common.mixins import ImageVariantsMixin
+from apps.common.typography import typograph_html, typograph_text
 
 
 class BlogCategory(models.Model):
@@ -51,3 +52,16 @@ class BlogPost(ImageVariantsMixin, models.Model):
 
     def __str__(self):
         return self.title
+
+    def save(self, *args, **kwargs):
+        self.title = typograph_text(self.title, html_entities=True)
+        self.description = typograph_text(self.description, html_entities=True)
+        if self.content:
+            self.content = typograph_html(self.content)
+
+        update_fields = kwargs.get('update_fields')
+        if update_fields:
+            kwargs['update_fields'] = list(
+                set(update_fields) | {'title', 'description', 'content'},
+            )
+        super().save(*args, **kwargs)

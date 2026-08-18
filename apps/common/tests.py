@@ -13,6 +13,7 @@ from apps.common.images import generate_image_variants
 from apps.common.schemas import build_picture_format
 from apps.common.tasks import generate_image_variants_task
 from apps.common.test_utils import FieldFileStub, make_test_image
+from apps.common.typography import typograph_html, typograph_text
 from apps.doctors.models import Doctor
 
 
@@ -191,3 +192,93 @@ class ImageVariantsMixinEnqueueTest(TestCase):
 
         self.assertIsNotNone(doctor.pk)
         self.assertTrue(Doctor.objects.filter(pk=doctor.pk).exists())
+
+
+class TypographyTextTest(TestCase):
+    def test_converts_double_quotes_to_guillemets(self):
+        self.assertEqual(
+            typograph_text('Он сказал: "привет" и ушёл'),
+            'Он сказал: «привет» и%sушёл' % '\u00A0',
+        )
+
+    def test_nested_quotes_become_lapki(self):
+        self.assertEqual(
+            typograph_text('«внешние «внутренние» кавычки»'),
+            '«внешние „внутренние" кавычки»',
+        )
+
+    def test_straight_quotes_nested_become_lapki(self):
+        self.assertEqual(
+            typograph_text('«внешние "внутренние" кавычки»'),
+            '«внешние „внутренние" кавычки»',
+        )
+
+    def test_existing_top_level_guillemets_preserved(self):
+        self.assertEqual(typograph_text('«уже готовая ёлочка»'), '«уже готовая ёлочка»')
+
+    def test_converts_spaced_hyphen_to_em_dash(self):
+        self.assertEqual(typograph_text('Москва - столица'), 'Москва%s— столица' % '\u00A0')
+
+    def test_converts_double_hyphen_to_em_dash(self):
+        self.assertEqual(typograph_text('Это--пример'), 'Это—пример')
+
+    def test_converts_ellipsis(self):
+        self.assertEqual(typograph_text('Ну и дела...'), 'Ну и%sдела…' % '\u00A0')
+
+    def test_adds_nbsp_after_short_preposition(self):
+        result = typograph_text('Привет в Москве')
+        self.assertIn('в%sМоскве' % '\u00A0', result)
+
+    def test_adds_nbsp_before_percent(self):
+        self.assertEqual(typograph_text('Скидка 25 %'), 'Скидка 25%s%%' % '\u00A0')
+
+    def test_glues_number_to_numero_sign(self):
+        self.assertEqual(typograph_text('кабинет № 5'), 'кабинет №%s5' % '\u00A0')
+
+    def test_removes_space_before_comma_and_dot(self):
+        self.assertEqual(typograph_text('Привет ,мир.'), 'Привет,мир.')
+
+    def test_leaves_regular_hyphen_in_words(self):
+        self.assertEqual(typograph_text('кофе-машина'), 'кофе-машина')
+
+
+class TypographyHtmlTest(TestCase):
+    def test_strips_style_attribute(self):
+        html = '<h2>Заголовок</h2><p style="margin-left:0px;">Текст</p>'
+        result = typograph_html(html)
+        self.assertNotIn('style', result)
+        self.assertIn('<h2>Заголовок</h2>', result)
+        self.assertIn('<p>Текст</p>', result)
+
+    def test_strips_single_quoted_style_attribute(self):
+        result = typograph_html('<p style=\'color:red\'>Текст</p>')
+        self.assertEqual(result, '<p>Текст</p>')
+
+    def test_typographs_only_text_nodes(self):
+        result = typograph_html('<p>Москва - столица</p>')
+        self.assertEqual(result, '<p>Москва&nbsp;&mdash; столица</p>')
+
+    def test_preserves_attributes_and_nbsp(self):
+        html = '<a href="/x">Скидка 25&nbsp;%</a>'
+        result = typograph_html(html)
+        self.assertIn('href="/x"', result)
+        self.assertIn('25&nbsp;%', result)
+
+    def test_emits_nbsp_and_mdash_entities_in_html(self):
+        result = typograph_html('<p>Привет в Москве - скидка</p>')
+        self.assertEqual(result, '<p>Привет в&nbsp;Москве&nbsp;&mdash; скидка</p>')
+
+    def test_glues_existing_mdash_entity_with_nbsp(self):
+        result = typograph_html('<p>Слово &mdash; это тест</p>')
+        self.assertEqual(result, '<p>Слово&nbsp;&mdash; это тест</p>')
+
+    def test_drops_style_block(self):
+        html = '<p>Текст</p><style>p { color: red }</style><p>Ещё</p>'
+        result = typograph_html(html)
+        self.assertNotIn('<style>', result)
+        self.assertNotIn('color', result)
+        self.assertEqual(result, '<p>Текст</p><p>Ещё</p>')
+
+    def test_returns_original_on_empty(self):
+        self.assertEqual(typograph_html(''), '')
+        self.assertIsNone(typograph_html(None))
