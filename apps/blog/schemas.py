@@ -37,9 +37,13 @@ class BlogPostDetailSchema(BlogPostListSchema):
     content: str
 
 
-class PaginatedBlogPostSchema(Schema):
-    items: list[BlogPostListSchema]
+class PaginationSchema(Schema):
     page: int
     perPage: int
     total: int
     totalPages: int
+
+
+class PaginatedBlogPostSchema(Schema):
+    items: list[BlogPostListSchema]
+    pagination: PaginationSchema
