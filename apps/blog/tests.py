@@ -145,3 +145,35 @@ class BlogPostPictureFormatAPITest(TestCase):
         poster = response.json()['poster']
         self.assertIsNone(poster['original']['mobile'])
         self.assertIsNone(poster['webp']['mobile'])
+
+
+class BlogPostTypographySaveTest(TestCase):
+    def setUp(self):
+        self.category = BlogCategory.objects.create(name='Новости', slug='news')
+
+    def test_save_typographs_title_description_and_content(self):
+        post = BlogPost.objects.create(
+            title='Зачем устанавливают "коронку"',
+            slug='koronka',
+            category=self.category,
+            description='Москва - столица',
+            content='<p style="margin-left:0px;">Привет в Москве - скидка 25&nbsp;%</p>',
+            status=BlogPost.Status.PUBLISHED,
+            published_at=timezone.now(),
+        )
+        post.refresh_from_db()
+        self.assertEqual(post.title, 'Зачем устанавливают «коронку»')
+        self.assertEqual(post.description, 'Москва&nbsp;&mdash; столица')
+        self.assertNotIn('style', post.content)
+        self.assertEqual(post.content, '<p>Привет в&nbsp;Москве&nbsp;&mdash; скидка 25&nbsp;%</p>')
+
+    def test_update_keeps_typography(self):
+        post = BlogPost.objects.create(
+            title='Обычный заголовок', slug='obichnyy', category=self.category,
+            description='Описание', content='<p>Текст</p>',
+            status=BlogPost.Status.PUBLISHED,
+        )
+        post.title = 'Новый "заголовок"'
+        post.save(update_fields=['title'])
+        post.refresh_from_db()
+        self.assertEqual(post.title, 'Новый «заголовок»')

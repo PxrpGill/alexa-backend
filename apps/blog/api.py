@@ -9,7 +9,7 @@ router = Router(tags=['Блог'])
 DEFAULT_PER_PAGE = 10
 
 
-@router.get('', response=PaginatedBlogPostSchema)
+@router.get('/', response=PaginatedBlogPostSchema)
 def list_posts(request, page: int = 1, perPage: int = DEFAULT_PER_PAGE, allPages: bool = False):
     """Список опубликованных статей блога с пагинацией."""
     qs = BlogPost.objects.filter(
