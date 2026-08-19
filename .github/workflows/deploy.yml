@@ -3,6 +3,7 @@ name: Build and Deploy
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
@@ -55,6 +56,7 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           envs: GHCR_TOKEN,GHCR_USER
           script: |
+            set -e
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             sudo -n chown -R deploy:deploy /opt/alexa-backend 2>/dev/null || true
             git config --global --add safe.directory /opt/alexa-backend || true

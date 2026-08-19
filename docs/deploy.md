@@ -176,7 +176,7 @@ POSTGRES_DB=alexa
 POSTGRES_USER=alexa
 POSTGRES_PASSWORD=<тот же пароль, что DB_PASSWORD>
 
-DOCKER_IMAGE=ghcr.io/PxrpGill/alexa-backend:latest
+DOCKER_IMAGE=ghcr.io/pxrpgill/alexa-backend:latest   # ВАЖНО: имя образа в GHCR ТОЛЬКО в нижнем регистре
 
 CELERY_BROKER_URL=redis://redis:6379/0
 ```
@@ -339,7 +339,7 @@ docker-compose -f docker/prod/docker-compose.yml exec -T web python manage.py co
 
 ```bash
 # Откатить на предыдущий образ по SHA коммита
-export DOCKER_IMAGE=ghcr.io/PxrpGill/alexa-backend:<sha_предыдущего_коммита>
+export DOCKER_IMAGE=ghcr.io/pxrpgill/alexa-backend:<sha_предыдущего_коммита>
 docker-compose -f docker/prod/docker-compose.yml up -d web worker
 ```
 
