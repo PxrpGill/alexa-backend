@@ -7,6 +7,7 @@ from apps.common.schemas import PictureFormatSchema, build_picture_format
 class PromotionSchema(Schema):
     slug: str
     title: str
+    description: Optional[str]
     banner: Optional[PictureFormatSchema] = None
     starts_at: date
     ends_at: Optional[date] = None
