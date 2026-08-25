@@ -5,7 +5,7 @@ from apps.common.schemas import PictureFormatSchema, build_picture_format
 
 
 class PromotionSchema(Schema):
-    id: int
+    slug: str
     title: str
     banner: Optional[PictureFormatSchema] = None
     starts_at: date
@@ -15,3 +15,11 @@ class PromotionSchema(Schema):
     @staticmethod
     def resolve_banner(obj):
         return build_picture_format(obj.banner, obj.banner_mobile)
+
+
+class PromotionRequestSchema(Schema):
+    slug: str
+    patient_name: str
+    patient_phone: str
+    is_ad_agreement: Optional[bool] = None
+    is_privacy_agreement: Optional[bool] = None
