@@ -38,6 +38,7 @@ LOCAL_APPS = [
     "apps.dms",
     "apps.consultation",
     "apps.branch",
+    "apps.vacancies",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -110,6 +111,18 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+MAX_RESUME_SIZE = config("MAX_RESUME_SIZE", default=5 * 1024 * 1024, cast=int)
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": config(
+            "REDIS_URL",
+            default=config("CELERY_BROKER_URL", default="redis://localhost:6379/0"),
+        ),
+    }
+}
 
 CORS_ALLOWED_ORIGINS = config(
     "CORS_ALLOWED_ORIGINS",
@@ -197,6 +210,9 @@ JAZZMIN_SETTINGS = {
         "blog.blogpost": "fas fa-newspaper",
         "promotions.promotion": "fas fa-percent",
         "appointments.appointment": "fas fa-calendar-check",
+        "vacancies.vacancycategory": "fas fa-layer-group",
+        "vacancies.vacancy": "fas fa-briefcase",
+        "vacancies.application": "fas fa-file-signature",
     },
     "order_with_respect_to": [
         "users",
@@ -204,6 +220,7 @@ JAZZMIN_SETTINGS = {
         "blog",
         "promotions",
         "appointments",
+        "vacancies",
     ],
     "default_icon_parents": "fas fa-chevron-circle-right",
     "default_icon_children": "fas fa-circle",
