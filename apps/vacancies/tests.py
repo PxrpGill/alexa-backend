@@ -121,6 +121,49 @@ class VacancyListAPITest(VacanciesBaseTestCase):
         self.assertNotIn(inactive.slug, slugs)
         self.assertEqual(set(categories[0].keys()), {"slug", "name"})
 
+    def test_total_counts_all_open_vacancies(self):
+        other = VacancyCategory.objects.create(name="Администрация")
+        Vacancy.objects.create(
+            category=other,
+            name="Администратор",
+            description="d",
+            branch=self.branch,
+            is_published=True,
+        )
+        Vacancy.objects.create(
+            category=self.category,
+            name="Черновик",
+            description="d",
+            branch=self.branch,
+            is_published=False,
+        )
+        response = self.client.get("/api/v1/vacancies")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["total"], 2)
+
+    def test_without_category_uses_first_category_with_vacancies(self):
+        VacancyCategory.objects.create(name="Пустая", sort_order=0)
+        other = VacancyCategory.objects.create(name="Администрация", sort_order=1)
+        Vacancy.objects.create(
+            category=other,
+            name="Администратор",
+            description="d",
+            branch=self.branch,
+            is_published=True,
+        )
+        self.category.sort_order = 10
+        self.category.save(update_fields=["sort_order"])
+        response = self.client.get("/api/v1/vacancies")
+        names = [item["vacancy_name"] for item in response.json()["results"]]
+        self.assertEqual(names, ["Администратор"])
+
+    def test_categories_without_vacancies_hidden(self):
+        empty = VacancyCategory.objects.create(name="Пустая")
+        response = self.client.get("/api/v1/vacancies")
+        slugs = [cat["slug"] for cat in response.json()["categories"]]
+        self.assertIn(self.category.slug, slugs)
+        self.assertNotIn(empty.slug, slugs)
+
     def test_vacancy_from_inactive_category_not_shown(self):
         inactive = VacancyCategory.objects.create(name="Отключённая", is_active=False)
         Vacancy.objects.create(

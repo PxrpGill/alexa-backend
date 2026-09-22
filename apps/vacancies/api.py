@@ -25,16 +25,33 @@ RESUME_THROTTLE_WINDOW = 60
 
 @router.get("", response=VacanciesListResponseSchema)
 def list_vacancies(request, category: str | None = None):
-    """Список опубликованных вакансий. Фильтрация по категории: ?category=<slug>."""
-    categories = list(VacancyCategory.objects.filter(is_active=True))
+    """Список опубликованных вакансий. Фильтрация по категории: ?category=<slug>.
+
+    Без параметра category берётся первая категория с опубликованными вакансиями.
+    В списке категорий остаются только те, где есть опубликованные вакансии.
+    """
     vacancies = Vacancy.objects.filter(
         is_published=True, category__is_active=True
     ).select_related("category", "branch")
+
+    total = vacancies.count()
+
+    categories = list(
+        VacancyCategory.objects.filter(is_active=True, vacancies__is_published=True)
+        .distinct()
+        .order_by("sort_order", "id")
+    )
+
+    if not category and categories:
+        category = categories[0].slug
+
     if category:
         vacancies = vacancies.filter(category__slug=category)
+
     return {
         "categories": categories,
         "results": list(vacancies),
+        "total": total,
     }
 
 
