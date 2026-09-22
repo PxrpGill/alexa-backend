@@ -30,6 +30,7 @@ class VacancyListSchema(Schema):
 class VacanciesListResponseSchema(Schema):
     categories: list[VacancyCategorySchema]
     results: list[VacancyListSchema]
+    total: int
 
 
 class HeroSchema(Schema):
