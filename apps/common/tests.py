@@ -4,6 +4,8 @@ import tempfile
 from io import BytesIO
 from unittest.mock import patch
 
+import requests
+
 from django.core.files.base import ContentFile
 from django.core.files.storage import FileSystemStorage
 from django.core.cache import cache
@@ -11,6 +13,7 @@ from django.test import RequestFactory, TestCase, override_settings
 from PIL import Image
 
 from apps.common.images import generate_image_variants
+from apps.common.max import send_max_message
 from apps.common.schemas import build_picture_format
 from apps.common.tasks import generate_image_variants_task
 from apps.common.test_utils import FieldFileStub, make_test_image
@@ -354,3 +357,37 @@ class ThrottleDecoratorTest(TestCase):
 
         # Другой клиент за тем же nginx не должен быть заблокирован.
         self.assertEqual(self.view(self._request('203.0.113.2'))[0], 200)
+
+
+@override_settings(
+    MAX_API_URL="https://botapi.max.ru",
+    MAX_BOT_TOKEN="token-123",
+    MAX_CHAT_ID="-100500",
+)
+class SendMaxMessageTest(TestCase):
+    @patch("apps.common.max.requests.post")
+    def test_posts_text_to_max_bot_api(self, post):
+        send_max_message("привет")
+
+        post.assert_called_once()
+        args, kwargs = post.call_args
+        self.assertEqual(args[0], "https://botapi.max.ru/messages")
+        self.assertEqual(
+            kwargs["params"], {"access_token": "token-123", "chat_id": "-100500"}
+        )
+        self.assertEqual(kwargs["json"], {"text": "привет"})
+        self.assertEqual(kwargs["timeout"], 10)
+
+    @patch("apps.common.max.requests.post")
+    def test_raises_on_error_response(self, post):
+        post.return_value.raise_for_status.side_effect = requests.HTTPError("500")
+
+        with self.assertRaises(requests.HTTPError):
+            send_max_message("привет")
+
+    @override_settings(MAX_API_URL="https://botapi.max.ru/")
+    @patch("apps.common.max.requests.post")
+    def test_strips_trailing_slash_in_api_url(self, post):
+        send_max_message("привет")
+
+        self.assertEqual(post.call_args[0][0], "https://botapi.max.ru/messages")
