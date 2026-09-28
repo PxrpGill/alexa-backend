@@ -6,13 +6,15 @@ from unittest.mock import patch
 
 from django.core.files.base import ContentFile
 from django.core.files.storage import FileSystemStorage
-from django.test import TestCase, override_settings
+from django.core.cache import cache
+from django.test import RequestFactory, TestCase, override_settings
 from PIL import Image
 
 from apps.common.images import generate_image_variants
 from apps.common.schemas import build_picture_format
 from apps.common.tasks import generate_image_variants_task
 from apps.common.test_utils import FieldFileStub, make_test_image
+from apps.common.throttling import get_client_ip, throttle
 from apps.common.typography import typograph_html, typograph_text
 from apps.doctors.models import Doctor
 
@@ -282,3 +284,73 @@ class TypographyHtmlTest(TestCase):
     def test_returns_original_on_empty(self):
         self.assertEqual(typograph_html(''), '')
         self.assertIsNone(typograph_html(None))
+
+
+class GetClientIpTest(TestCase):
+    """IP клиента за обратным прокси (apps/common/throttling.get_client_ip)."""
+
+    def _request(self, **meta):
+        request = RequestFactory().post('/api/v1/appointments')
+        request.META.update(meta)
+        return request
+
+    @override_settings(TRUST_PROXY_HEADERS=True)
+    def test_prefers_x_real_ip(self):
+        request = self._request(
+            REMOTE_ADDR='172.18.0.5',
+            HTTP_X_REAL_IP='203.0.113.7',
+            HTTP_X_FORWARDED_FOR='198.51.100.1, 203.0.113.7',
+        )
+        self.assertEqual(get_client_ip(request), '203.0.113.7')
+
+    @override_settings(TRUST_PROXY_HEADERS=True)
+    def test_takes_last_forwarded_for_hop(self):
+        # Первый элемент цепочки подделан клиентом, последний добавил наш nginx.
+        request = self._request(
+            REMOTE_ADDR='172.18.0.5',
+            HTTP_X_FORWARDED_FOR='1.2.3.4, 203.0.113.7',
+        )
+        self.assertEqual(get_client_ip(request), '203.0.113.7')
+
+    @override_settings(TRUST_PROXY_HEADERS=False)
+    def test_ignores_headers_without_proxy(self):
+        request = self._request(
+            REMOTE_ADDR='192.0.2.10',
+            HTTP_X_REAL_IP='203.0.113.7',
+        )
+        self.assertEqual(get_client_ip(request), '192.0.2.10')
+
+    @override_settings(TRUST_PROXY_HEADERS=True)
+    def test_falls_back_to_remote_addr(self):
+        self.assertEqual(get_client_ip(self._request(REMOTE_ADDR='192.0.2.11')), '192.0.2.11')
+
+
+class ThrottleDecoratorTest(TestCase):
+    """Лимит считается по IP клиента, а не по адресу контейнера nginx."""
+
+    def setUp(self):
+        cache.clear()
+        self.addCleanup(cache.clear)
+
+        @throttle(2, 60, message='stop')
+        def view(request):
+            return 200, {'message': 'ok'}
+
+        self.view = view
+
+    def _request(self, ip):
+        request = RequestFactory().post('/api/v1/appointments')
+        request.META.update(REMOTE_ADDR='172.18.0.5', HTTP_X_REAL_IP=ip)
+        return request
+
+    @override_settings(TRUST_PROXY_HEADERS=True)
+    @patch('apps.common.throttling.sys.argv', ['manage.py', 'runserver'])
+    def test_limits_per_client_ip(self):
+        self.assertEqual(self.view(self._request('203.0.113.1'))[0], 200)
+        self.assertEqual(self.view(self._request('203.0.113.1'))[0], 200)
+        status, body = self.view(self._request('203.0.113.1'))
+        self.assertEqual(status, 429)
+        self.assertEqual(body['message'], 'stop')
+
+        # Другой клиент за тем же nginx не должен быть заблокирован.
+        self.assertEqual(self.view(self._request('203.0.113.2'))[0], 200)

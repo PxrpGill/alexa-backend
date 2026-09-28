@@ -4,6 +4,7 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from .models import Promotion, PromotionRequests
 from .schemas import PromotionSchema, PromotionRequestSchema
+from ..common.throttling import throttle_lead_form
 from ..common.schemas import SuccessResponseMessageSchema, ErrorResponseMessageSchema
 
 router = Router(tags=["Акции"])
@@ -21,8 +22,13 @@ def list_promotions(request):
 
 @router.post(
     "/request",
-    response={201: SuccessResponseMessageSchema, 400: ErrorResponseMessageSchema},
+    response={
+        201: SuccessResponseMessageSchema,
+        400: ErrorResponseMessageSchema,
+        429: ErrorResponseMessageSchema,
+    },
 )
+@throttle_lead_form
 def request_to_promotion(request, payload: PromotionRequestSchema):
     """Создать запись на Акцию."""
 

@@ -27,7 +27,7 @@ make dev-check           # python manage.py check
 
 ## Cross-app FKs: use the branch app
 
-There is **no `apps/branches` and no `services` app anymore** (both are gone from the current tree; see CLAUDE.md warning below). Cross-app FKs use direct imports, not string refs:
+There is **no `apps/branches` and no `services` app anymore** (both are gone from the current tree). Cross-app FKs use direct imports, not string refs:
 
 ```python
 from apps.branch.models import BranchModel  # model class is BranchModel, not Branch
@@ -49,7 +49,20 @@ All four copy the same pattern from `apps/appointments/api.py`:
 - Resolve `BranchModel` by slug, create record (store `is_ad_agreement` / `is_privacy_agreement`).
 - Return `{201: SuccessResponseMessageSchema, 400: ErrorResponseMessageSchema}`.
 
+- Add `@throttle_lead_form` (below the `@router.post` decorator) and declare
+  `429: ErrorResponseMessageSchema` — `tests/test_api_smoke.py` enforces this.
+
 When adding a new lead-type endpoint, replicate this exact shape.
+
+## Reverse-proxy assumptions
+
+- Client IP comes from `apps.common.throttling.get_client_ip` (`X-Real-IP`, then the
+  LAST `X-Forwarded-For` hop), gated by `TRUST_PROXY_HEADERS` (default `not DEBUG`).
+  Never use `REMOTE_ADDR` directly — behind nginx it is the proxy's own address.
+- Private uploads (CV files) are served by `apps/vacancies/views.download_resume`
+  (staff-only, X-Accel-Redirect); `/media/vacancies/resumes/` is `internal` in nginx.
+- `docker/prod/nginx/nginx.conf` is `skip-worktree` on the server — repo edits must be
+  copied over by hand (`docs/deploy.md` §7.2 and §14).
 
 ## Gotchas
 
@@ -57,10 +70,10 @@ When adding a new lead-type endpoint, replicate this exact shape.
 - Blog list endpoint uses custom pagination: query params `page`, `perPage`, `allPages`; response is `PaginatedBlogPostSchema` (`items` + `pagination`), not a plain list.
 - Promotions date filtering uses `timezone.localdate()`; `ends_at__isnull=True` means "ongoing".
 - Git workflow: feature branches `feat/*` → PR → merge to `main` triggers CI deploy (GHCR image + SSH to VPS). Commit messages in Russian.
-- `apps/vacancies/` is an in-progress empty scaffold (already in `INSTALLED_APPS`, uncommitted).
+- `apps/vacancies/` is fully implemented (vacancy tree + applications with resume upload, own `validators.py` and IP throttling); `apps/dms/tests.py` and `apps/consultation/tests.py` are still empty scaffolds.
 
 ## Stale references (do NOT trust)
 
-- `CLAUDE.md` describes an older plan and is **partly wrong now**: `apps/branches` → `apps/branch` (`BranchModel`), `apps/services` was removed, `BranchFilterMixin` (old `apps/users/mixins.py`) no longer exists — the mixin file is `apps/common/mixins.py` (`ImageVariantsMixin`), string-ref FKs convention is abandoned.
-- `.claude/PROJECT_MEMORY.md` and `.superpowers/sdd/progress.md` are legacy Claude Code planning artifacts, not a status of the current tree.
+- `.claude/PROJECT_MEMORY.md` and `docs/superpowers/` (plans + specs) describe the original 9-task plan, back when `apps/branches`, `apps/services` and `BranchFilterMixin` existed. They are historical, not a status of the current tree.
+- `CLAUDE.md` is up to date (rewritten 2026-09-28) and covers the same conventions in more detail — keep both in sync when a convention changes.
 - Real deploy docs: `docs/deploy.md`, `docs/docker.md`.

@@ -1,4 +1,6 @@
 from django.contrib import admin
+from django.urls import reverse
+from django.utils.html import format_html
 
 from .models import (
     Application,
@@ -100,18 +102,28 @@ class VacancyAdmin(admin.ModelAdmin):
 
 @admin.register(Application)
 class ApplicationAdmin(admin.ModelAdmin):
-    list_display = ["created_at", "vacancy", "name", "phone", "status"]
+    list_display = ["created_at", "vacancy", "name", "phone", "status", "resume_link"]
     list_editable = ["status"]
     list_filter = ["status", "vacancy", "created_at"]
     search_fields = ["name", "phone"]
     date_hierarchy = "created_at"
     ordering = ["-created_at"]
+    # resume скрыт: файл отдаётся только через защищённую view с проверкой прав,
+    # прямая ссылка на /media/vacancies/resumes/ закрыта в nginx.
+    exclude = ["resume"]
     readonly_fields = [
         "created_at",
         "vacancy",
         "name",
         "phone",
-        "resume",
+        "resume_link",
         "privacy_policy_accepted",
         "privacy_policy_accepted_at",
     ]
+
+    @admin.display(description="Резюме")
+    def resume_link(self, obj):
+        if not obj.resume:
+            return "—"
+        url = reverse("vacancy_resume_download", args=[obj.pk])
+        return format_html('<a href="{}" target="_blank">Скачать</a>', url)
