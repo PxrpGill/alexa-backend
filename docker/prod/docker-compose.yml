@@ -92,8 +92,14 @@ services:
     # старый сертификат после `certbot renew` до ручного перезапуска.
     command: /bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g "daemon off;"'
     logging: *default-logging
+    environment:
+      # Домен берётся из docker/prod/.env.prod (деплой его экспортирует).
+      # `:?` — деплой падает с понятной ошибкой, а не поднимает nginx с пустым
+      # server_name и битыми путями к сертификатам.
+      DOMAIN: ${DOMAIN:?не задан DOMAIN — добавьте его в docker/prod/.env.prod}
+      NGINX_ENVSUBST_FILTER: DOMAIN
     volumes:
-      - ./nginx:/etc/nginx/conf.d:ro
+      - ./nginx:/etc/nginx/templates:ro
       - static_volume:/app/staticfiles:ro
       - media_volume:/app/media:ro
       - certbot_certs:/etc/letsencrypt:ro

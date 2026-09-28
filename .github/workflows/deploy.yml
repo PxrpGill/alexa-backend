@@ -125,6 +125,7 @@ jobs:
             cd /opt/alexa-backend
             git pull origin main
             export DOCKER_IMAGE=$(grep '^DOCKER_IMAGE=' docker/prod/.env.prod | cut -d= -f2-)
+            export DOMAIN=$(grep '^DOMAIN=' docker/prod/.env.prod | cut -d= -f2-)
             DC -f docker/prod/docker-compose.yml pull web
             DC -f docker/prod/docker-compose.yml up -d
             DC -f docker/prod/docker-compose.yml exec -T web python manage.py migrate --noinput
