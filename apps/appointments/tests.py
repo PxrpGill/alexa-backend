@@ -90,3 +90,32 @@ class AppointmentMaxNotificationTest(TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(Appointment.objects.count(), 1)
         delay.assert_not_called()
+
+
+@override_settings(FRONTEND_URL="https://alexa.ru", MAX_NOTIFICATIONS_ENABLED=False)
+class AppointmentPageUrlTest(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.branch = BranchModel.objects.create(name="Центральный")
+
+    def test_page_url_points_to_the_site_not_the_api(self):
+        from apps.appointments.models import Appointment
+
+        response = self.client.post(
+            "/api/v1/appointments",
+            {
+                "patient_name": "Иван Иванов",
+                "patient_phone": "+79991234567",
+                "branch_slug": self.branch.slug,
+                "page_url": "/landyshevaya/terapiya-vz",
+                "is_ad_agreement": True,
+                "is_privacy_agreement": True,
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        appointment = Appointment.objects.get()
+        self.assertEqual(
+            appointment.page_url, "https://alexa.ru/landyshevaya/terapiya-vz"
+        )

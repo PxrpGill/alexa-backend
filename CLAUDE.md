@@ -99,8 +99,13 @@ docker-compose -f docker/dev/docker-compose.yml exec web \
 Один и тот же контракт, эталон — `apps/appointments/api.py`:
 1. нет `payload.is_privacy_agreement` → `400` + `ErrorResponseMessageSchema`;
 2. филиал по slug (в `promotions/request` — акция по slug);
-3. создать запись, сохранив `is_ad_agreement` / `is_privacy_agreement`, `page_url` через `request.build_absolute_uri()`;
+3. создать запись, сохранив `is_ad_agreement` / `is_privacy_agreement`, `page_url` через `build_page_url()` из `apps/common/leads.py`;
 4. `response={201: SuccessResponseMessageSchema, 400: ErrorResponseMessageSchema}`.
+
+`build_page_url()` строит «Откуда сделана заявка» от `FRONTEND_URL`: сайт (Next.js) живёт
+на отдельном домене, и `request.build_absolute_uri()` приклеил бы к пути домен бэкенда.
+Абсолютная ссылка от клиента сохраняется как есть (в ней бывают рекламные метки);
+без `FRONTEND_URL` поведение прежнее.
 
 Новый lead-endpoint повторяет эту форму. Исключение — `vacancies`: там валидация вынесена
 в `apps/vacancies/validators.py` и ответ 400 — словарь `{field: [messages]}` (`ApplicationErrorSchema`),

@@ -13,6 +13,7 @@ from django.test import RequestFactory, TestCase, override_settings
 from PIL import Image
 
 from apps.common.images import generate_image_variants
+from apps.common.leads import build_page_url
 from apps.common.max import (
     MaxDeliveryError,
     admin_change_url,
@@ -555,3 +556,41 @@ class CeleryBrokerPublishTest(TestCase):
         options = app.conf.broker_transport_options
         self.assertEqual(options.get("socket_connect_timeout"), 2)
         self.assertEqual(options.get("socket_timeout"), 2)
+
+
+class BuildPageUrlTest(TestCase):
+    """Сайт и бэкенд живут на разных доменах, поэтому request.build_absolute_uri()
+    приклеил бы к пути со страницы сайта домен API."""
+
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.request = self.factory.post("/api/v1/appointments", HTTP_HOST="api.alexa.ru")
+
+    @override_settings(FRONTEND_URL="https://alexa.ru")
+    def test_relative_path_gets_frontend_domain(self):
+        url = build_page_url(self.request, "/landyshevaya/terapiya-vz")
+
+        self.assertEqual(url, "https://alexa.ru/landyshevaya/terapiya-vz")
+
+    @override_settings(FRONTEND_URL="https://alexa.ru/")
+    def test_trailing_slash_does_not_double_up(self):
+        url = build_page_url(self.request, "/landyshevaya")
+
+        self.assertEqual(url, "https://alexa.ru/landyshevaya")
+
+    @override_settings(FRONTEND_URL="https://alexa.ru")
+    def test_absolute_url_from_client_is_kept_as_is(self):
+        url = build_page_url(self.request, "https://alexa.ru/promo?utm_source=vk")
+
+        self.assertEqual(url, "https://alexa.ru/promo?utm_source=vk")
+
+    @override_settings(FRONTEND_URL="", ALLOWED_HOSTS=["api.alexa.ru"])
+    def test_without_setting_falls_back_to_request_host(self):
+        url = build_page_url(self.request, "/landyshevaya")
+
+        self.assertEqual(url, "http://api.alexa.ru/landyshevaya")
+
+    @override_settings(FRONTEND_URL="https://alexa.ru")
+    def test_empty_page_url_becomes_root(self):
+        self.assertEqual(build_page_url(self.request, ""), "/")
+        self.assertEqual(build_page_url(self.request, None), "/")

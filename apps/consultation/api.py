@@ -5,6 +5,7 @@ from apps.branch.models import BranchModel
 
 from .models import Consultation
 from .schemas import ConsultationCreateSchema
+from ..common.leads import build_page_url
 from ..common.throttling import throttle_lead_form
 from ..common.schemas import SuccessResponseMessageSchema, ErrorResponseMessageSchema
 
@@ -34,11 +35,7 @@ def create_appointment(request, payload: ConsultationCreateSchema):
         Consultation.objects.create(
             patient_name=payload.patient_name,
             patient_phone=payload.patient_phone,
-            page_url=(
-                request.build_absolute_uri(payload.page_url)
-                if payload.page_url
-                else "/"
-            ),
+            page_url=build_page_url(request, payload.page_url),
             branch=branch,
             is_ad_agreement=payload.is_ad_agreement,
             is_privacy_agreement=payload.is_privacy_agreement,

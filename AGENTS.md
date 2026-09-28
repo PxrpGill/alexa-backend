@@ -47,6 +47,10 @@ In API schemas, expose images via `build_picture_format(obj.photo, obj.photo_mob
 All four copy the same pattern from `apps/appointments/api.py`:
 - Require `payload.is_privacy_agreement`, else `400` + `ErrorResponseMessageSchema`.
 - Resolve `BranchModel` by slug, create record (store `is_ad_agreement` / `is_privacy_agreement`).
+- Build `page_url` with `build_page_url()` from `apps/common/leads.py`, never
+  `request.build_absolute_uri()` directly: the site runs on its own domain, so the raw
+  helper would stamp the backend's host onto a path that belongs to the frontend.
+  `FRONTEND_URL` holds the site's domain; an absolute URL sent by the client is kept as is.
 - Return `{201: SuccessResponseMessageSchema, 400: ErrorResponseMessageSchema}`.
 
 - Add `@throttle_lead_form` (below the `@router.post` decorator) and declare
