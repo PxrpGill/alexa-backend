@@ -90,7 +90,14 @@ services:
       - "443:443"
     # Перезагружаем конфиг раз в 6 часов: иначе nginx продолжает отдавать
     # старый сертификат после `certbot renew` до ручного перезапуска.
-    command: /bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g "daemon off;"'
+    #
+    # ВАЖНО: nginx запускается через `exec /docker-entrypoint.sh nginx ...`, а не
+    # напрямую. Штатный entrypoint выполняет /docker-entrypoint.d/* (в том числе
+    # envsubst по шаблонам из /etc/nginx/templates) только когда его первый
+    # аргумент — `nginx`. Если стартовать `nginx -g` напрямую, подстановка
+    # ${DOMAIN} не произойдёт и контейнер поднимется со штатным default.conf
+    # образа, то есть без HTTPS.
+    command: /bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & exec /docker-entrypoint.sh nginx -g "daemon off;"'
     logging: *default-logging
     environment:
       # Домен берётся из docker/prod/.env.prod (деплой его экспортирует).
