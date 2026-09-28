@@ -54,6 +54,19 @@ All four copy the same pattern from `apps/appointments/api.py`:
 
 When adding a new lead-type endpoint, replicate this exact shape.
 
+## MAX messenger notifications
+
+Every lead model notifies a shared MAX chat from a `post_save` receiver in its app's
+`signals.py` (imported from `apps.py:ready()`). The receiver builds the text with
+`format_lead_message()` and queues it via
+`transaction.on_commit(lambda: queue_max_notification(text))` — both live in
+`apps/common/max.py`. Delivery is the Celery task `send_max_notification_task`
+(3 retries); a dead broker or a failing MAX never breaks `save()` or the API response.
+
+Disabled until `MAX_BOT_TOKEN` and `MAX_CHAT_ID` are set (`MAX_NOTIFICATIONS_ENABLED`),
+so dev and CI make no network calls. Admin links come from `SITE_URL`. Resume files are
+never sent to the chat (protected personal data) — only an "attached / none" marker.
+
 ## Reverse-proxy assumptions
 
 - Client IP comes from `apps.common.throttling.get_client_ip` (`X-Real-IP`, then the
@@ -72,7 +85,7 @@ When adding a new lead-type endpoint, replicate this exact shape.
 - Blog list endpoint uses custom pagination: query params `page`, `perPage`, `allPages`; response is `PaginatedBlogPostSchema` (`items` + `pagination`), not a plain list.
 - Promotions date filtering uses `timezone.localdate()`; `ends_at__isnull=True` means "ongoing".
 - Git workflow: feature branches `feat/*` → PR → merge to `main` triggers CI deploy (GHCR image + SSH to VPS). Commit messages in Russian.
-- `apps/vacancies/` is fully implemented (vacancy tree + applications with resume upload, own `validators.py` and IP throttling); `apps/dms/tests.py` and `apps/consultation/tests.py` are still empty scaffolds.
+- `apps/vacancies/` is fully implemented (vacancy tree + applications with resume upload, own `validators.py` and IP throttling); `apps/dms/tests.py` and `apps/consultation/tests.py` now cover MAX notifications.
 
 ## Stale references (do NOT trust)
 
