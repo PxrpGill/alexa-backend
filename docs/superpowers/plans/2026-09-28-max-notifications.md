@@ -33,7 +33,7 @@
 
 ---
 
-### Задача 1: Настройки, зависимость и клиент MAX
+### Task 1: Настройки, зависимость и клиент MAX
 
 **Files:**
 - Create: `apps/common/max.py`
@@ -194,7 +194,7 @@ git commit -m "feat(notifications): клиент MAX Bot API и настройк
 
 ---
 
-### Задача 2: Celery-задача и постановка уведомления в очередь
+### Task 2: Celery-задача и постановка уведомления в очередь
 
 **Files:**
 - Modify: `apps/common/tasks.py`, `apps/common/max.py`
@@ -305,7 +305,7 @@ git commit -m "feat(notifications): Celery-задача отправки уве�
 
 ---
 
-### Задача 3: Форматирование сообщения и ссылка на админку
+### Task 3: Форматирование сообщения и ссылка на админку
 
 **Files:**
 - Modify: `apps/common/max.py`
@@ -424,7 +424,7 @@ git commit -m "feat(notifications): единый формат сообщения
 
 ---
 
-### Задача 4: Уведомления о записи на приём
+### Task 4: Уведомления о записи на приём
 
 **Files:**
 - Modify: `apps/appointments/signals.py`
@@ -580,7 +580,7 @@ git commit -m "feat(appointments): уведомление в MAX о новой �
 
 ---
 
-### Задача 5: Уведомления о заявках ДМС и на консультацию
+### Task 5: Уведомления о заявках ДМС и на консультацию
 
 **Files:**
 - Create: `apps/dms/signals.py`, `apps/consultation/signals.py`
@@ -790,7 +790,7 @@ git commit -m "feat(dms,consultation): уведомления в MAX о новы
 
 ---
 
-### Задача 6: Уведомления о заявках на акцию
+### Task 6: Уведомления о заявках на акцию
 
 **Files:**
 - Create: `apps/promotions/signals.py`, `apps/promotions/tests.py` (файла тестов в приложении сейчас нет)
@@ -918,7 +918,7 @@ git commit -m "feat(promotions): уведомление в MAX о заявке �
 
 ---
 
-### Задача 7: Уведомления об откликах на вакансии
+### Task 7: Уведомления об откликах на вакансии
 
 **Files:**
 - Create: `apps/vacancies/signals.py`
@@ -1089,7 +1089,7 @@ git commit -m "feat(vacancies): уведомление в MAX о новом от
 
 ---
 
-### Задача 8: Документация и финальная проверка
+### Task 8: Документация и финальная проверка
 
 **Files:**
 - Modify: `CLAUDE.md`, `AGENTS.md`
