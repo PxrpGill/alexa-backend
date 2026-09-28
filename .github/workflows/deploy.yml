@@ -124,6 +124,8 @@ jobs:
             fi
             cd /opt/alexa-backend
             git pull origin main
+            # docker/prod/.env compose читает сам; export — запасной путь,
+            # если на сервере этого файла ещё нет (значения лежат в .env.prod)
             export DOCKER_IMAGE=$(grep '^DOCKER_IMAGE=' docker/prod/.env.prod | cut -d= -f2-)
             export DOMAIN=$(grep '^DOMAIN=' docker/prod/.env.prod | cut -d= -f2-)
             DC -f docker/prod/docker-compose.yml pull web

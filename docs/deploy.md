@@ -379,6 +379,8 @@ docker-compose -f docker/prod/docker-compose.yml up -d web worker
 | `502 Bad Gateway` сразу после деплоя | nginx держит старый IP контейнера `web`. Лечится `exec nginx nginx -s reload` (CI делает это сам), навсегда — `resolver` + `proxy_pass` через переменную в nginx.conf. Проверьте, что на сервере лежит актуальный nginx.conf (см. §7.2) |
 | `502 Bad Gateway` в остальных случаях | упал gunicorn: `docker-compose logs web`; часто — упал Celery/Redis |
 | HTTPS с просроченным сертификатом | nginx не перечитал обновлённый certbot-ом сертификат. В compose у nginx есть цикл `nginx -s reload` раз в 6 часов — проверьте, что `command:` не потерян |
+| Внутри контейнера `default.conf` со `server_name localhost`, HTTPS не отвечает | шаблоны не отрендерились: `command` у nginx обязан запускать сервер через `exec /docker-entrypoint.sh nginx -g "daemon off;"` — штатный entrypoint выполняет envsubst только если его первый аргумент `nginx`. Срочно поднять: `exec nginx /docker-entrypoint.d/20-envsubst-on-templates.sh`, затем `nginx -t` и `nginx -s reload` |
+| `required variable DOMAIN is missing a value` при ручном `docker compose` | интерполяция не видит `.env.prod` (он только `env_file`). Создайте `docker/prod/.env` из `.env.example` — compose читает его автоматически. Разово: `set -a; . docker/prod/.env.prod; set +a` |
 | `400 Bad Request` | `ALLOWED_HOSTS` не содержит домен в `.env.prod` |
 | SSL не выдаётся | DNS ещё не пропагировался; порт 80 закрыт файрволом; `YOUR_DOMAIN` остался в nginx.conf |
 | nginx не стартует после первого запуска | не выполнен bootstrap из шага 7.3 (нет сертификатов) |
@@ -467,9 +469,11 @@ curl -I https://yourdomain.com/media/vacancies/resumes/<любой_файл>.pdf
 ```bash
 cd /opt/alexa-backend
 
-# 1. Домен в окружение
+# 1. Домен в окружение: в .env.prod (для контейнера) и в .env (для интерполяции
+#    compose — тогда ручные `docker compose ...` работают без export)
 echo 'DOMAIN=yourdomain.com' >> docker/prod/.env.prod
-grep '^DOMAIN=' docker/prod/.env.prod
+cp docker/prod/.env.example docker/prod/.env && nano docker/prod/.env
+grep '^DOMAIN=' docker/prod/.env.prod docker/prod/.env
 
 # 2. Снять защиту и выбросить локальную версию конфига —
 #    в репозитории этого файла больше нет, он заменён шаблоном
