@@ -3,6 +3,8 @@ import shutil
 import tempfile
 from datetime import timedelta
 
+from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 from django.urls import resolve
 from django.utils import timezone
@@ -150,7 +152,8 @@ class PromotionConditionImageTest(PromotionsBaseTestCase):
         shutil.rmtree(cls.media_root, ignore_errors=True)
         super().tearDownClass()
 
-    def test_condition_icon_returned_as_picture_format(self):
+    def test_condition_icon_returned_as_source_url(self):
+        """Иконка условия отдаётся ссылкой на исходный файл, без webp/avif."""
         PromotionCondition.objects.create(
             promotion=self.promotion,
             icon=make_test_image(name="condition.jpg"),
@@ -160,15 +163,40 @@ class PromotionConditionImageTest(PromotionsBaseTestCase):
         response = self.client.get(f"/api/v1/promotions/{self.promotion.slug}")
         self.assertEqual(response.status_code, 200)
         icon = response.json()["conditions"]["cards"][0]["icon"]
-        self.assertEqual(set(icon.keys()), {"original", "webp", "avif"})
-        self.assertTrue(icon["original"]["src"].endswith(".jpg"))
+        self.assertIsInstance(icon, str)
+        self.assertTrue(icon.endswith(".jpg"))
 
-    def test_condition_without_icon_returns_none(self):
+    def test_condition_icon_accepts_svg(self):
+        PromotionCondition.objects.create(
+            promotion=self.promotion,
+            icon=SimpleUploadedFile(
+                "condition.svg",
+                b'<svg xmlns="http://www.w3.org/2000/svg"></svg>',
+                content_type="image/svg+xml",
+            ),
+            title="Рассрочка",
+            description="Рассрочка на 12 месяцев",
+        )
+        response = self.client.get(f"/api/v1/promotions/{self.promotion.slug}")
+        icon = response.json()["conditions"]["cards"][0]["icon"]
+        self.assertTrue(icon.endswith(".svg"))
+
+    def test_condition_icon_rejects_unsupported_extension(self):
+        condition = PromotionCondition(
+            promotion=self.promotion,
+            icon=SimpleUploadedFile("condition.exe", b"MZ"),
+            title="Плохая иконка",
+            description="Описание",
+        )
+        with self.assertRaises(ValidationError):
+            condition.full_clean()
+
+    def test_condition_without_icon_returns_empty_string(self):
         PromotionCondition.objects.create(
             promotion=self.promotion, title="Без иконки", description="Описание"
         )
         response = self.client.get(f"/api/v1/promotions/{self.promotion.slug}")
-        self.assertIsNone(response.json()["conditions"]["cards"][0]["icon"])
+        self.assertEqual(response.json()["conditions"]["cards"][0]["icon"], "")
 
 
 class PromotionRouteOrderTest(TestCase):

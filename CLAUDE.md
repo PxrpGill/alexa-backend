@@ -92,6 +92,11 @@ docker-compose -f docker/dev/docker-compose.yml exec web \
 → `PictureFormatSchema` = `{original, webp, avif}`, каждый `{src, mobile}`. Сырые `.url` не
 возвращаем. Вариант попадает в ответ лишь если файл реально существует в storage.
 
+Исключение — **иконки**: они не растр, конвертация их только портит. `Vacancy`-иконки и
+`PromotionCondition.icon` — обычный `FileField` (не `ImageField`, иначе Pillow отвергнет SVG)
+с `FileExtensionValidator`, без `ImageVariantsMixin`; в схеме отдаются плоской строкой
+`obj.icon.url if obj.icon else ""`. Новую иконку заводи так же.
+
 Под тестами Celery — eager (`CELERY_TASK_ALWAYS_EAGER = "test" in sys.argv` в `base.py`),
 т.е. варианты генерируются синхронно.
 

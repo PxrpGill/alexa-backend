@@ -40,7 +40,9 @@ from apps.branch.models import BranchModel  # model class is BranchModel, not Br
 
 Models that store images inherit `ImageVariantsMixin` (`apps/common/mixins.py`) and declare `IMAGE_VARIANT_FIELDS = ['photo', 'photo_mobile']`. On `save()`, a Celery task (`apps/common/tasks.py`) generates `.webp`/`.avif` next to the original (needs `pillow_avif`). Celery runs eager under tests (`CELERY_TASK_ALWAYS_EAGER = "test" in sys.argv`).
 
-In API schemas, expose images via `build_picture_format(obj.photo, obj.photo_mobile)` from `apps/common/schemas.py` → `PictureFormatSchema` (`{original, webp, avif}`, each `{src, mobile}`). Don't return raw URLs.
+In API schemas, expose images via `build_picture_format(obj.photo, obj.photo_mobile)` from `apps/common/schemas.py` → `PictureFormatSchema` (`{original, webp, avif}`, each `{src, mobile}`). Don't return raw URLs. Exception: icons (`Vacancy`, `PromotionCondition.icon`) are plain
+`FileField`s with a `FileExtensionValidator` (so SVG is allowed), no `ImageVariantsMixin`,
+and are exposed as a plain URL string.
 
 ## Lead-form POST endpoints (appointments, dms, consultation, promotions/request)
 

@@ -1,4 +1,5 @@
 import uuid
+from django.core.validators import FileExtensionValidator
 from django.db import models
 from django_ckeditor_5.fields import CKEditor5Field
 from apps.common.mixins import ImageVariantsMixin
@@ -100,23 +101,29 @@ class PromotionRequests(models.Model):
         return f"{self.patient_name}"
 
 
-class PromotionCondition(ImageVariantsMixin, models.Model):
+class PromotionCondition(models.Model):
     promotion = models.ForeignKey(
         Promotion,
         on_delete=models.CASCADE,
         related_name="conditions",
         verbose_name="Акция",
     )
-    icon = models.ImageField(
-        upload_to="promotions/icons/", blank=True, verbose_name="Иконка"
+    icon = models.FileField(
+        upload_to="promotions/icons/",
+        blank=True,
+        validators=[
+            FileExtensionValidator(
+                allowed_extensions=["svg", "png", "jpg", "jpeg", "webp", "avif"]
+            )
+        ],
+        verbose_name="Иконка",
+        help_text="Отдаётся фронтенду как есть, без конвертации. Можно загрузить SVG.",
     )
     title = models.CharField(max_length=255, blank=True, verbose_name="Заголовок")
     description = models.TextField(verbose_name="Описание")
     sort_order = models.PositiveIntegerField(
         default=0, verbose_name="Порядок отображения"
     )
-
-    IMAGE_VARIANT_FIELDS = ["icon"]
 
     class Meta:
         verbose_name = "Условие акции"
