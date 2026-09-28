@@ -57,11 +57,12 @@ When adding a new lead-type endpoint, replicate this exact shape.
 ## MAX messenger notifications
 
 Every lead model notifies a shared MAX chat from a `post_save` receiver in its app's
-`signals.py` (imported from `apps.py:ready()`). The receiver builds the text with
-`format_lead_message()` and queues it via
-`transaction.on_commit(lambda: queue_max_notification(text))` — both live in
-`apps/common/max.py`. Delivery is the Celery task `send_max_notification_task`
-(3 retries); a dead broker or a failing MAX never breaks `save()` or the API response.
+`signals.py` (imported from `apps.py:ready()`). The receiver passes a title and rows to `queue_lead_notification()`
+(`apps/common/max.py`), which formats the text inside a `try/except` and queues the task
+on commit. Delivery is the Celery task `send_max_notification_task` (3 retries). Neither a
+formatting failure, a dead broker nor a failing MAX ever breaks `save()` or the API
+response. Delivery errors are wrapped in `MaxDeliveryError` — the bot token travels as a
+query parameter and would otherwise leak into logs via the `requests` error text.
 
 Disabled until `MAX_BOT_TOKEN` and `MAX_CHAT_ID` are set (`MAX_NOTIFICATIONS_ENABLED`),
 so dev and CI make no network calls. Admin links come from `SITE_URL`. Resume files are

@@ -110,10 +110,13 @@ docker-compose -f docker/dev/docker-compose.yml exec web \
 ### Уведомления о заявках в MAX
 Каждая модель заявки шлёт уведомление в общий чат мессенджера MAX через
 `post_save`-receiver в `signals.py` своего приложения (`apps.py:ready()` его импортирует).
-Receiver собирает текст через `format_lead_message()` и ставит его в очередь
-`transaction.on_commit(lambda: queue_max_notification(text))` — оба из `apps/common/max.py`.
-Отправка идёт Celery-задачей `send_max_notification_task` с 3 ретраями; сбой брокера
-или MAX не ломает `save()` и ответ API.
+Receiver передаёт заголовок и строки в `queue_lead_notification()` (`apps/common/max.py`):
+она собирает текст `format_lead_message()` под `try/except` и ставит задачу после коммита.
+Отправка идёт Celery-задачей `send_max_notification_task` с 3 ретраями. Ни сбой сборки
+текста, ни лежащий брокер, ни падение MAX не ломают `save()` и ответ API — иначе пациент
+увидел бы ошибку на сохранённой заявке и отправил форму повторно.
+Ошибки доставки заворачиваются в `MaxDeliveryError`: токен идёт в URL query-параметром
+и из текста исключения `requests` утёк бы в логи.
 
 Выключено, пока не заданы `MAX_BOT_TOKEN` и `MAX_CHAT_ID` (`MAX_NOTIFICATIONS_ENABLED`),
 поэтому дев и CI никуда не стучатся. Ссылка на запись в админке строится из `SITE_URL`.
