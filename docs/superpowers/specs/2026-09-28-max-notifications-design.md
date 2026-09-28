@@ -15,7 +15,7 @@
 ## Что уже есть (входные условия)
 
 - Бот в MAX создан, токен и `chat_id` чата на руках, бот добавлен в чат.
-  Интеграция — через MAX Bot API (`https://platform-api2.max.ru`).
+  Интеграция — через MAX Bot API (`https://platform-api.max.ru`).
 - Пять типов заявок с одинаковым контрактом lead-форм:
   `Appointment`, `DMS`, `Consultation`, `PromotionRequests`, `Application` (отклик на вакансию).
 - Celery с redis-брокером, под тестами — eager.
@@ -126,7 +126,7 @@ Plain text, без markdown/html — не нужно экранирование 
 `config/settings/base.py`:
 
 ```python
-MAX_API_URL = config("MAX_API_URL", default="https://platform-api2.max.ru")
+MAX_API_URL = config("MAX_API_URL", default="https://platform-api.max.ru")
 MAX_BOT_TOKEN = config("MAX_BOT_TOKEN", default="")
 MAX_CHAT_ID = config("MAX_CHAT_ID", default="")
 MAX_NOTIFICATIONS_ENABLED = config(

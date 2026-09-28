@@ -62,7 +62,7 @@ Every lead model notifies a shared MAX chat from a `post_save` receiver in its a
 on commit. Delivery is the Celery task `send_max_notification_task` (3 retries). Neither a
 formatting failure, a dead broker nor a failing MAX ever breaks `save()` or the API
 response. Delivery errors are wrapped in `MaxDeliveryError` so the `requests` error text never
-leaks request details into logs. The API is `https://platform-api2.max.ru`; the token goes
+leaks request details into logs. The API is `https://platform-api.max.ru`; the token goes
 in the `Authorization` header as a raw string (a `Bearer` prefix returns 401) and
 `chat_id` is a query parameter.
 
