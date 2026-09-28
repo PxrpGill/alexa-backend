@@ -1,9 +1,16 @@
 from django.contrib import admin
-from .models import Promotion, PromotionRequests
+from .models import Promotion, PromotionCondition, PromotionRequests
+
+
+class PromotionConditionInline(admin.TabularInline):
+    model = PromotionCondition
+    extra = 1
+    fields = ["icon", "title", "description", "sort_order"]
 
 
 @admin.register(Promotion)
 class PromotionAdmin(admin.ModelAdmin):
+    inlines = [PromotionConditionInline]
     list_display = ["title", "starts_at", "ends_at", "is_active"]
     list_editable = ["is_active"]
     list_filter = ["is_active"]

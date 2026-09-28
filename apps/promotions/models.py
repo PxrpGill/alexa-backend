@@ -23,6 +23,17 @@ class Promotion(ImageVariantsMixin, models.Model):
         blank=True,
         verbose_name="Баннер (мобильная версия)",
     )
+    detail_title = models.CharField(
+        max_length=255, blank=True, verbose_name="Заголовок подробного описания"
+    )
+    detail_description = CKEditor5Field(
+        config_name="default", blank=True, verbose_name="Подробное описание"
+    )
+    conditions_title = models.CharField(
+        max_length=255,
+        default="Условия акции",
+        verbose_name="Заголовок условий акции",
+    )
     starts_at = models.DateField(verbose_name="Начало")
     ends_at = models.DateField(null=True, blank=True, verbose_name="Окончание")
     is_active = models.BooleanField(default=True, verbose_name="Активна")
@@ -87,3 +98,30 @@ class PromotionRequests(models.Model):
 
     def __str__(self):
         return f"{self.patient_name}"
+
+
+class PromotionCondition(ImageVariantsMixin, models.Model):
+    promotion = models.ForeignKey(
+        Promotion,
+        on_delete=models.CASCADE,
+        related_name="conditions",
+        verbose_name="Акция",
+    )
+    icon = models.ImageField(
+        upload_to="promotions/icons/", blank=True, verbose_name="Иконка"
+    )
+    title = models.CharField(max_length=255, blank=True, verbose_name="Заголовок")
+    description = models.TextField(verbose_name="Описание")
+    sort_order = models.PositiveIntegerField(
+        default=0, verbose_name="Порядок отображения"
+    )
+
+    IMAGE_VARIANT_FIELDS = ["icon"]
+
+    class Meta:
+        verbose_name = "Условие акции"
+        verbose_name_plural = "Условия акции"
+        ordering = ["sort_order", "id"]
+
+    def __str__(self):
+        return self.title or self.description[:50]

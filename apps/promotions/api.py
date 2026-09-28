@@ -3,21 +3,34 @@ from django.utils import timezone
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from .models import Promotion, PromotionRequests
-from .schemas import PromotionSchema, PromotionRequestSchema
+from .schemas import PromotionSchema, PromotionDetailSchema, PromotionRequestSchema
 from ..common.throttling import throttle_lead_form
 from ..common.schemas import SuccessResponseMessageSchema, ErrorResponseMessageSchema
 
 router = Router(tags=["Акции"])
 
 
-@router.get("", response=list[PromotionSchema])
-def list_promotions(request):
-    """Активные акции на сегодняшнюю дату."""
+def active_promotions():
+    """Акции, активные на сегодняшнюю дату (ends_at=None — бессрочная)."""
     today = timezone.localdate()
     return Promotion.objects.filter(
         is_active=True,
         starts_at__lte=today,
     ).filter(Q(ends_at__isnull=True) | Q(ends_at__gte=today))
+
+
+@router.get("", response=list[PromotionSchema])
+def list_promotions(request):
+    """Активные акции на сегодняшнюю дату."""
+    return active_promotions()
+
+
+@router.get("/{slug}", response=PromotionDetailSchema)
+def get_promotion(request, slug: str):
+    """Внутренняя страница акции: hero, подробное описание и условия."""
+    return get_object_or_404(
+        active_promotions().prefetch_related("conditions"), slug=slug
+    )
 
 
 @router.post(

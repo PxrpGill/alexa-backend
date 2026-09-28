@@ -16,6 +16,7 @@ class APISmokeTest(TestCase):
         '/api/v1/blog',
         '/api/v1/blog/{slug}',
         '/api/v1/promotions',
+        '/api/v1/promotions/{slug}',
         '/api/v1/promotions/request',
         '/api/v1/appointments',
         '/api/v1/dms',

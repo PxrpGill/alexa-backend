@@ -218,6 +218,7 @@ JAZZMIN_SETTINGS = {
         "blog.blogcategory": "fas fa-tag",
         "blog.blogpost": "fas fa-newspaper",
         "promotions.promotion": "fas fa-percent",
+        "promotions.promotioncondition": "fas fa-list-check",
         "appointments.appointment": "fas fa-calendar-check",
         "vacancies.vacancycategory": "fas fa-layer-group",
         "vacancies.vacancy": "fas fa-briefcase",
