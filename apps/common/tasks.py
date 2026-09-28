@@ -1,6 +1,7 @@
 from celery import shared_task
 
 from apps.common.images import generate_image_variants
+from apps.common.max import send_max_message
 
 
 @shared_task(autoretry_for=(Exception,), max_retries=3, retry_backoff=True)
@@ -16,3 +17,9 @@ def generate_image_variants_task(app_label, model_name, pk, field_name):
     field_file = getattr(instance, field_name)
     if field_file:
         generate_image_variants(field_file)
+
+
+@shared_task(autoretry_for=(Exception,), max_retries=3, retry_backoff=True)
+def send_max_notification_task(text):
+    """Отправить уведомление о заявке в чат MAX."""
+    send_max_message(text)

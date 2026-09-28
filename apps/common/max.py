@@ -26,3 +26,21 @@ def send_max_message(text: str) -> None:
         timeout=REQUEST_TIMEOUT,
     )
     response.raise_for_status()
+
+
+def queue_max_notification(text: str) -> None:
+    """Поставить уведомление в очередь.
+
+    Импорт задачи — внутри функции, чтобы не ловить циклический импорт
+    (`tasks` импортирует `send_max_message` из этого модуля).
+    Недоступный брокер не должен ронять save() и ответ API.
+    """
+    if not settings.MAX_NOTIFICATIONS_ENABLED:
+        return
+
+    from apps.common.tasks import send_max_notification_task
+
+    try:
+        send_max_notification_task.delay(text)
+    except Exception:
+        logger.exception("Не удалось поставить уведомление MAX в очередь")

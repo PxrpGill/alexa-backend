@@ -13,9 +13,9 @@ from django.test import RequestFactory, TestCase, override_settings
 from PIL import Image
 
 from apps.common.images import generate_image_variants
-from apps.common.max import send_max_message
+from apps.common.max import queue_max_notification, send_max_message
 from apps.common.schemas import build_picture_format
-from apps.common.tasks import generate_image_variants_task
+from apps.common.tasks import generate_image_variants_task, send_max_notification_task
 from apps.common.test_utils import FieldFileStub, make_test_image
 from apps.common.throttling import get_client_ip, throttle
 from apps.common.typography import typograph_html, typograph_text
@@ -391,3 +391,39 @@ class SendMaxMessageTest(TestCase):
         send_max_message("привет")
 
         self.assertEqual(post.call_args[0][0], "https://botapi.max.ru/messages")
+
+
+class QueueMaxNotificationTest(TestCase):
+    @override_settings(MAX_NOTIFICATIONS_ENABLED=False)
+    @patch("apps.common.tasks.send_max_notification_task.delay")
+    def test_does_nothing_when_integration_disabled(self, delay):
+        queue_max_notification("привет")
+
+        delay.assert_not_called()
+
+    @override_settings(MAX_NOTIFICATIONS_ENABLED=True)
+    @patch("apps.common.tasks.send_max_notification_task.delay")
+    def test_queues_task_when_enabled(self, delay):
+        queue_max_notification("привет")
+
+        delay.assert_called_once_with("привет")
+
+    @override_settings(MAX_NOTIFICATIONS_ENABLED=True)
+    @patch("apps.common.tasks.send_max_notification_task.delay")
+    def test_swallows_broker_errors(self, delay):
+        delay.side_effect = OSError("broker is down")
+
+        queue_max_notification("привет")  # исключение наружу не летит
+
+
+class SendMaxNotificationTaskTest(TestCase):
+    @override_settings(
+        MAX_API_URL="https://botapi.max.ru",
+        MAX_BOT_TOKEN="token-123",
+        MAX_CHAT_ID="-100500",
+    )
+    @patch("apps.common.max.requests.post")
+    def test_task_sends_message(self, post):
+        send_max_notification_task("привет")
+
+        post.assert_called_once()
