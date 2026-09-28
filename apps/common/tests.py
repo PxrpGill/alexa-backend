@@ -14,6 +14,7 @@ from PIL import Image
 
 from apps.common.images import generate_image_variants
 from apps.common.max import (
+    MaxDeliveryError,
     admin_change_url,
     format_lead_message,
     queue_max_notification,
@@ -387,10 +388,32 @@ class SendMaxMessageTest(TestCase):
 
     @patch("apps.common.max.requests.post")
     def test_raises_on_error_response(self, post):
-        post.return_value.raise_for_status.side_effect = requests.HTTPError("500")
+        post.return_value.ok = False
+        post.return_value.status_code = 500
 
-        with self.assertRaises(requests.HTTPError):
+        with self.assertRaises(MaxDeliveryError):
             send_max_message("привет")
+
+    @patch("apps.common.max.requests.post")
+    def test_error_never_leaks_bot_token(self, post):
+        post.return_value.ok = False
+        post.return_value.status_code = 500
+
+        with self.assertRaises(MaxDeliveryError) as ctx:
+            send_max_message("привет")
+
+        self.assertNotIn("token-123", str(ctx.exception))
+
+    @patch("apps.common.max.requests.post")
+    def test_network_error_never_leaks_bot_token(self, post):
+        post.side_effect = requests.ConnectionError(
+            "failed for url: https://botapi.max.ru/messages?access_token=token-123"
+        )
+
+        with self.assertRaises(MaxDeliveryError) as ctx:
+            send_max_message("привет")
+
+        self.assertNotIn("token-123", str(ctx.exception))
 
     @override_settings(MAX_API_URL="https://botapi.max.ru/")
     @patch("apps.common.max.requests.post")
@@ -487,3 +510,34 @@ class FormatLeadMessageTest(TestCase):
         self.assertNotIn("Филиал", text)
         self.assertNotIn("Страница", text)
         self.assertNotIn("None", text)
+
+
+@override_settings(MAX_API_URL="https://botapi.max.ru")
+class SendMaxMessageWithoutCredentialsTest(TestCase):
+    @override_settings(MAX_BOT_TOKEN="", MAX_CHAT_ID="-100500")
+    @patch("apps.common.max.requests.post")
+    def test_does_not_call_api_without_token(self, post):
+        send_max_message("привет")
+
+        post.assert_not_called()
+
+    @override_settings(MAX_BOT_TOKEN="token-123", MAX_CHAT_ID="")
+    @patch("apps.common.max.requests.post")
+    def test_does_not_call_api_without_chat_id(self, post):
+        send_max_message("привет")
+
+        post.assert_not_called()
+
+
+class CeleryBrokerPublishTest(TestCase):
+    """Постановка задачи лежит на пути ответа лид-формы (ATOMIC_REQUESTS выключен,
+    поэтому on_commit выполняется сразу), значит зависший брокер не должен
+    держать запрос дольше пары секунд."""
+
+    def test_publish_does_not_retry_and_has_socket_timeouts(self):
+        from config.celery import app
+
+        self.assertFalse(app.conf.task_publish_retry)
+        options = app.conf.broker_transport_options
+        self.assertEqual(options.get("socket_connect_timeout"), 2)
+        self.assertEqual(options.get("socket_timeout"), 2)

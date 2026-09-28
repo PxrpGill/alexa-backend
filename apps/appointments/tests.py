@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 from django.test import Client, TestCase, override_settings
+from django.urls import NoReverseMatch
 
 from apps.branch.models import BranchModel
 
@@ -70,3 +71,22 @@ class AppointmentMaxNotificationTest(TestCase):
         self.assertIn("Пётр Петров", text)
         self.assertNotIn("Филиал", text)
         self.assertNotIn("None", text)
+
+    @patch("apps.common.tasks.send_max_notification_task.delay")
+    @patch(
+        "apps.common.max.admin_change_url",
+        side_effect=NoReverseMatch("модель не зарегистрирована в админке"),
+    )
+    def test_broken_admin_link_does_not_break_the_lead(self, admin_url, delay):
+        from apps.appointments.models import Appointment
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                "/api/v1/appointments",
+                self._payload(),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(Appointment.objects.count(), 1)
+        delay.assert_not_called()

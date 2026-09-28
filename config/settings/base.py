@@ -144,6 +144,16 @@ CELERY_TASK_IGNORE_RESULT = True
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_TASK_ALWAYS_EAGER = "test" in sys.argv
 
+# Постановка задачи выполняется синхронно в HTTP-запросе (ATOMIC_REQUESTS выключен,
+# поэтому transaction.on_commit срабатывает сразу), а уведомления о заявках ставятся
+# прямо на пути публичной формы. Зависший брокер не должен держать ответ:
+# без ретраев публикации и с короткими таймаутами сокета.
+CELERY_TASK_PUBLISH_RETRY = False
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    "socket_connect_timeout": 2,
+    "socket_timeout": 2,
+}
+
 # Уведомления о заявках в мессенджер MAX (apps/common/max.py).
 MAX_API_URL = config("MAX_API_URL", default="https://botapi.max.ru")
 MAX_BOT_TOKEN = config("MAX_BOT_TOKEN", default="")

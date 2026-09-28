@@ -1,9 +1,8 @@
-from django.db import transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
 
-from apps.common.max import format_lead_message, queue_max_notification
+from apps.common.max import queue_lead_notification
 
 from .models import DMS
 
@@ -14,7 +13,7 @@ def on_dms_created(sender, instance, created, **kwargs):
     if not created:
         return
 
-    text = format_lead_message(
+    queue_lead_notification(
         "🏥 Новая заявка ДМС",
         [
             ("Имя", instance.patient_name),
@@ -28,4 +27,3 @@ def on_dms_created(sender, instance, created, **kwargs):
         ],
         instance,
     )
-    transaction.on_commit(lambda: queue_max_notification(text))
