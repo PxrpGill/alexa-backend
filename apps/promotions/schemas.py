@@ -32,13 +32,14 @@ class PromotionDetailSectionSchema(Schema):
 
 
 class PromotionConditionCardSchema(Schema):
-    icon: Optional[PictureFormatSchema] = None
+    icon: str
     title: str
     description: str
 
     @staticmethod
     def resolve_icon(obj):
-        return build_picture_format(obj.icon)
+        """Иконка отдаётся исходным файлом (в т.ч. SVG), без webp/avif-вариантов."""
+        return obj.icon.url if obj.icon else ""
 
 
 class PromotionConditionsSchema(Schema):
