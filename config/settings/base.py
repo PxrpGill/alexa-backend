@@ -144,6 +144,29 @@ CELERY_TASK_IGNORE_RESULT = True
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_TASK_ALWAYS_EAGER = "test" in sys.argv
 
+# Постановка задачи выполняется синхронно в HTTP-запросе (ATOMIC_REQUESTS выключен,
+# поэтому transaction.on_commit срабатывает сразу), а уведомления о заявках ставятся
+# прямо на пути публичной формы. Зависший брокер не должен держать ответ:
+# без ретраев публикации и с короткими таймаутами сокета.
+CELERY_TASK_PUBLISH_RETRY = False
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    "socket_connect_timeout": 2,
+    "socket_timeout": 2,
+}
+
+# Уведомления о заявках в мессенджер MAX (apps/common/max.py).
+MAX_API_URL = config("MAX_API_URL", default="https://platform-api.max.ru")
+MAX_BOT_TOKEN = config("MAX_BOT_TOKEN", default="")
+MAX_CHAT_ID = config("MAX_CHAT_ID", default="")
+MAX_NOTIFICATIONS_ENABLED = config(
+    "MAX_NOTIFICATIONS_ENABLED",
+    default=bool(MAX_BOT_TOKEN and MAX_CHAT_ID),
+    cast=bool,
+)
+
+# Базовый адрес сайта — для ссылок на записи в админке в уведомлениях.
+SITE_URL = config("SITE_URL", default="http://localhost:8000")
+
 CKEDITOR_5_CONFIGS = {
     "default": {
         "toolbar": {

@@ -4,6 +4,8 @@ import tempfile
 from io import BytesIO
 from unittest.mock import patch
 
+import requests
+
 from django.core.files.base import ContentFile
 from django.core.files.storage import FileSystemStorage
 from django.core.cache import cache
@@ -11,11 +13,20 @@ from django.test import RequestFactory, TestCase, override_settings
 from PIL import Image
 
 from apps.common.images import generate_image_variants
+from apps.common.max import (
+    MaxDeliveryError,
+    admin_change_url,
+    format_lead_message,
+    queue_max_notification,
+    send_max_message,
+)
 from apps.common.schemas import build_picture_format
-from apps.common.tasks import generate_image_variants_task
+from apps.common.tasks import generate_image_variants_task, send_max_notification_task
 from apps.common.test_utils import FieldFileStub, make_test_image
 from apps.common.throttling import get_client_ip, throttle
 from apps.common.typography import typograph_html, typograph_text
+from apps.appointments.models import Appointment
+from apps.branch.models import BranchModel
 from apps.doctors.models import Doctor
 
 
@@ -354,3 +365,193 @@ class ThrottleDecoratorTest(TestCase):
 
         # Другой клиент за тем же nginx не должен быть заблокирован.
         self.assertEqual(self.view(self._request('203.0.113.2'))[0], 200)
+
+
+@override_settings(
+    MAX_API_URL="https://platform-api.max.ru",
+    MAX_BOT_TOKEN="token-123",
+    MAX_CHAT_ID="-100500",
+)
+class SendMaxMessageTest(TestCase):
+    @patch("apps.common.max.requests.post")
+    def test_posts_text_to_max_bot_api(self, post):
+        send_max_message("привет")
+
+        post.assert_called_once()
+        args, kwargs = post.call_args
+        self.assertEqual(args[0], "https://platform-api.max.ru/messages")
+        self.assertEqual(kwargs["params"], {"chat_id": "-100500"})
+        self.assertEqual(kwargs["json"], {"text": "привет"})
+        self.assertEqual(kwargs["timeout"], 10)
+
+    @patch("apps.common.max.requests.post")
+    def test_token_goes_to_authorization_header_without_bearer(self, post):
+        send_max_message("привет")
+
+        headers = post.call_args.kwargs["headers"]
+        self.assertEqual(headers["Authorization"], "token-123")
+        self.assertNotIn("Bearer", headers["Authorization"])
+
+    @patch("apps.common.max.requests.post")
+    def test_token_never_goes_into_query(self, post):
+        send_max_message("привет")
+
+        self.assertNotIn("access_token", post.call_args.kwargs["params"])
+
+    @patch("apps.common.max.requests.post")
+    def test_raises_on_error_response(self, post):
+        post.return_value.ok = False
+        post.return_value.status_code = 500
+
+        with self.assertRaises(MaxDeliveryError):
+            send_max_message("привет")
+
+    @patch("apps.common.max.requests.post")
+    def test_error_never_leaks_bot_token(self, post):
+        post.return_value.ok = False
+        post.return_value.status_code = 500
+
+        with self.assertRaises(MaxDeliveryError) as ctx:
+            send_max_message("привет")
+
+        self.assertNotIn("token-123", str(ctx.exception))
+
+    @patch("apps.common.max.requests.post")
+    def test_network_error_never_leaks_bot_token(self, post):
+        post.side_effect = requests.ConnectionError(
+            "failed for url: https://platform-api.max.ru/messages (token-123)"
+        )
+
+        with self.assertRaises(MaxDeliveryError) as ctx:
+            send_max_message("привет")
+
+        self.assertNotIn("token-123", str(ctx.exception))
+
+    @override_settings(MAX_API_URL="https://platform-api.max.ru/")
+    @patch("apps.common.max.requests.post")
+    def test_strips_trailing_slash_in_api_url(self, post):
+        send_max_message("привет")
+
+        self.assertEqual(
+            post.call_args[0][0], "https://platform-api.max.ru/messages"
+        )
+
+
+class QueueMaxNotificationTest(TestCase):
+    @override_settings(MAX_NOTIFICATIONS_ENABLED=False)
+    @patch("apps.common.tasks.send_max_notification_task.delay")
+    def test_does_nothing_when_integration_disabled(self, delay):
+        queue_max_notification("привет")
+
+        delay.assert_not_called()
+
+    @override_settings(MAX_NOTIFICATIONS_ENABLED=True)
+    @patch("apps.common.tasks.send_max_notification_task.delay")
+    def test_queues_task_when_enabled(self, delay):
+        queue_max_notification("привет")
+
+        delay.assert_called_once_with("привет")
+
+    @override_settings(MAX_NOTIFICATIONS_ENABLED=True)
+    @patch("apps.common.tasks.send_max_notification_task.delay")
+    def test_swallows_broker_errors(self, delay):
+        delay.side_effect = OSError("broker is down")
+
+        queue_max_notification("привет")  # исключение наружу не летит
+
+
+class SendMaxNotificationTaskTest(TestCase):
+    @override_settings(
+        MAX_API_URL="https://platform-api.max.ru",
+        MAX_BOT_TOKEN="token-123",
+        MAX_CHAT_ID="-100500",
+    )
+    @patch("apps.common.max.requests.post")
+    def test_task_sends_message(self, post):
+        send_max_notification_task("привет")
+
+        post.assert_called_once()
+
+
+@override_settings(SITE_URL="https://alexa.ru")
+class FormatLeadMessageTest(TestCase):
+    def setUp(self):
+        self.branch = BranchModel.objects.create(name="Центральный")
+        self.appointment = Appointment.objects.create(
+            patient_name="Иван Иванов",
+            patient_phone="+79991234567",
+            branch=self.branch,
+            is_privacy_agreement=True,
+        )
+
+    def test_admin_change_url_points_to_object(self):
+        url = admin_change_url(self.appointment)
+
+        self.assertEqual(
+            url,
+            f"https://alexa.ru/admin/appointments/appointment/{self.appointment.pk}/change/",
+        )
+
+    @override_settings(SITE_URL="https://alexa.ru/")
+    def test_admin_change_url_strips_trailing_slash(self):
+        url = admin_change_url(self.appointment)
+
+        self.assertNotIn("//admin", url.replace("https://", ""))
+
+    def test_message_contains_title_rows_and_admin_link(self):
+        text = format_lead_message(
+            "🦷 Новая запись на приём",
+            [("Имя", "Иван Иванов"), ("Телефон", "+79991234567")],
+            self.appointment,
+        )
+
+        lines = text.split("\n")
+        self.assertEqual(lines[0], "🦷 Новая запись на приём")
+        self.assertIn("Имя: Иван Иванов", text)
+        self.assertIn("Телефон: +79991234567", text)
+        self.assertIn(
+            f"Открыть в админке: https://alexa.ru/admin/appointments/appointment/{self.appointment.pk}/change/",
+            text,
+        )
+
+    def test_message_skips_empty_rows(self):
+        text = format_lead_message(
+            "🦷 Новая запись на приём",
+            [("Имя", "Иван Иванов"), ("Филиал", None), ("Страница", "")],
+            self.appointment,
+        )
+
+        self.assertNotIn("Филиал", text)
+        self.assertNotIn("Страница", text)
+        self.assertNotIn("None", text)
+
+
+@override_settings(MAX_API_URL="https://platform-api.max.ru")
+class SendMaxMessageWithoutCredentialsTest(TestCase):
+    @override_settings(MAX_BOT_TOKEN="", MAX_CHAT_ID="-100500")
+    @patch("apps.common.max.requests.post")
+    def test_does_not_call_api_without_token(self, post):
+        send_max_message("привет")
+
+        post.assert_not_called()
+
+    @override_settings(MAX_BOT_TOKEN="token-123", MAX_CHAT_ID="")
+    @patch("apps.common.max.requests.post")
+    def test_does_not_call_api_without_chat_id(self, post):
+        send_max_message("привет")
+
+        post.assert_not_called()
+
+
+class CeleryBrokerPublishTest(TestCase):
+    """Постановка задачи лежит на пути ответа лид-формы (ATOMIC_REQUESTS выключен,
+    поэтому on_commit выполняется сразу), значит зависший брокер не должен
+    держать запрос дольше пары секунд."""
+
+    def test_publish_does_not_retry_and_has_socket_timeouts(self):
+        from config.celery import app
+
+        self.assertFalse(app.conf.task_publish_retry)
+        options = app.conf.broker_transport_options
+        self.assertEqual(options.get("socket_connect_timeout"), 2)
+        self.assertEqual(options.get("socket_timeout"), 2)

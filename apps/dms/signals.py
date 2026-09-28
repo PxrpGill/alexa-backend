@@ -4,17 +4,17 @@ from django.utils import timezone
 
 from apps.common.max import queue_lead_notification
 
-from .models import Appointment
+from .models import DMS
 
 
-@receiver(post_save, sender=Appointment)
-def on_appointment_created(sender, instance, created, **kwargs):
-    """Уведомить чат MAX о новой записи на приём."""
+@receiver(post_save, sender=DMS)
+def on_dms_created(sender, instance, created, **kwargs):
+    """Уведомить чат MAX о новой заявке ДМС."""
     if not created:
         return
 
     queue_lead_notification(
-        "🦷 Новая запись на приём",
+        "🏥 Новая заявка ДМС",
         [
             ("Имя", instance.patient_name),
             ("Телефон", instance.patient_phone),

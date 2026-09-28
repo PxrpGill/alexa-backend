@@ -1,5 +1,6 @@
 import shutil
 import tempfile
+from unittest.mock import patch
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -546,3 +547,118 @@ class ResumeDownloadTest(TestCase):
             username='manager', password='pwd12345', is_staff=True
         )
         self.client.login(username='manager', password='pwd12345')
+
+
+@override_settings(MAX_NOTIFICATIONS_ENABLED=True, SITE_URL="https://alexa.ru")
+class ApplicationMaxNotificationTest(VacanciesBaseTestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.media_root = tempfile.mkdtemp()
+        cls.media_override = override_settings(MEDIA_ROOT=cls.media_root)
+        cls.media_override.enable()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.media_override.disable()
+        shutil.rmtree(cls.media_root, ignore_errors=True)
+        super().tearDownClass()
+
+    @patch("apps.common.tasks.send_max_notification_task.delay")
+    def test_apply_to_vacancy_queues_notification(self, delay):
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                f"/api/v1/vacancies/{self.vacancy.slug}/apply",
+                {
+                    "name": "Иван Иванов",
+                    "phone": "+79991234567",
+                    "privacy_policy_accepted": "true",
+                    "resume": make_resume(),
+                },
+                format="multipart",
+            )
+
+        self.assertEqual(response.status_code, 201)
+        delay.assert_called_once()
+        text = delay.call_args[0][0]
+        self.assertIn("Новый отклик на вакансию", text)
+        self.assertIn("Иван Иванов", text)
+        self.assertIn("+79991234567", text)
+        self.assertIn("Ассистент стоматолога", text)
+        self.assertIn("Резюме: приложено", text)
+        self.assertIn("/admin/vacancies/application/", text)
+
+    @patch("apps.common.tasks.send_max_notification_task.delay")
+    def test_general_apply_without_vacancy(self, delay):
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                "/api/v1/vacancies/apply",
+                {
+                    "name": "Пётр Петров",
+                    "phone": "+79990000000",
+                    "privacy_policy_accepted": "true",
+                    "resume": make_resume(),
+                },
+                format="multipart",
+            )
+
+        self.assertEqual(response.status_code, 201)
+        delay.assert_called_once()
+        text = delay.call_args[0][0]
+        self.assertIn("Пётр Петров", text)
+        self.assertNotIn("Вакансия", text)
+        self.assertIn("Резюме: приложено", text)
+        self.assertNotIn("None", text)
+
+    @patch("apps.common.tasks.send_max_notification_task.delay")
+    def test_application_without_resume_reports_no_resume(self, delay):
+        # Через API резюме обязательно (validators.validate_resume), но запись
+        # без файла может появиться из админки — сообщение не должно ломаться.
+        with self.captureOnCommitCallbacks(execute=True):
+            Application.objects.create(
+                name="Пётр Петров",
+                phone="+79990000000",
+                vacancy=None,
+                privacy_policy_accepted=True,
+            )
+
+        delay.assert_called_once()
+        text = delay.call_args[0][0]
+        self.assertIn("Пётр Петров", text)
+        self.assertNotIn("Вакансия", text)
+        self.assertIn("Резюме: нет", text)
+        self.assertNotIn("None", text)
+
+    @patch("apps.common.tasks.send_max_notification_task.delay")
+    def test_message_never_contains_resume_link_to_media(self, delay):
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(
+                f"/api/v1/vacancies/{self.vacancy.slug}/apply",
+                {
+                    "name": "Иван Иванов",
+                    "phone": "+79991234567",
+                    "privacy_policy_accepted": "true",
+                    "resume": make_resume(),
+                },
+                format="multipart",
+            )
+
+        text = delay.call_args[0][0]
+        self.assertNotIn("/media/", text)
+        self.assertNotIn("vacancies/resumes/", text)
+
+    @patch("apps.common.tasks.send_max_notification_task.delay")
+    def test_rejected_apply_sends_nothing(self, delay):
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                "/api/v1/vacancies/apply",
+                {
+                    "name": "Иван Иванов",
+                    "phone": "+79991234567",
+                    "privacy_policy_accepted": "false",
+                },
+                format="multipart",
+            )
+
+        self.assertEqual(response.status_code, 400)
+        delay.assert_not_called()

@@ -55,7 +55,7 @@ docker-compose -f docker/dev/docker-compose.yml exec web \
 | `doctors` | `Doctor`, `Specialization` | `GET /doctors/`, `/doctors/{id}/` |
 | `blog` | `BlogCategory`, `BlogPost` (+ типографика в `save()`) | `GET /blog`, `/blog/{slug}` |
 | `promotions` | `Promotion`, `PromotionRequests` | `GET /promotions`, `POST /promotions/request` |
-| `appointments` | `Appointment` + Telegram-signal stub (`signals.py`, подключён в `apps.py:ready()`) | `POST /appointments` |
+| `appointments` | `Appointment` + signal уведомления в MAX (`signals.py`, подключён в `apps.py:ready()`) | `POST /appointments` |
 | `dms` | `DMS` — заявки ДМС | `POST /dms` |
 | `consultation` | `Consultation` | `POST /consultation` |
 | `vacancies` | `VacancyCategory`, `Vacancy` + 5 inline-моделей, `Application`, `validators.py` | `GET /vacancies`, `/vacancies/{slug}`, `POST /vacancies/apply`, `/vacancies/{slug}/apply` |
@@ -106,6 +106,27 @@ docker-compose -f docker/dev/docker-compose.yml exec web \
 в `apps/vacancies/validators.py` и ответ 400 — словарь `{field: [messages]}` (`ApplicationErrorSchema`),
 загрузка резюме идёт `multipart/form-data` (`Form(...)` + `File(None)`) с проверкой
 расширения, MIME, `settings.MAX_RESUME_SIZE` и magic-байтов.
+
+### Уведомления о заявках в MAX
+Каждая модель заявки шлёт уведомление в общий чат мессенджера MAX через
+`post_save`-receiver в `signals.py` своего приложения (`apps.py:ready()` его импортирует).
+Receiver передаёт заголовок и строки в `queue_lead_notification()` (`apps/common/max.py`):
+она собирает текст `format_lead_message()` под `try/except` и ставит задачу после коммита.
+Отправка идёт Celery-задачей `send_max_notification_task` с 3 ретраями. Ни сбой сборки
+текста, ни лежащий брокер, ни падение MAX не ломают `save()` и ответ API — иначе пациент
+увидел бы ошибку на сохранённой заявке и отправил форму повторно.
+Ошибки доставки заворачиваются в `MaxDeliveryError`, чтобы текст исключения `requests`
+с деталями запроса не оседал в логах. API — `https://platform-api.max.ru`, токен идёт
+сырой строкой в заголовке `Authorization` (с префиксом `Bearer` будет 401), `chat_id` —
+query-параметром.
+
+Выключено, пока не заданы `MAX_BOT_TOKEN` и `MAX_CHAT_ID` (`MAX_NOTIFICATIONS_ENABLED`),
+поэтому дев и CI никуда не стучатся. Ссылка на запись в админке строится из `SITE_URL`.
+Файл резюме в чат не отправляется — это защищённые ПД, только пометка «приложено».
+Сигнал срабатывает и на запись, заведённую руками в админке — это осознанно.
+
+Новый тип заявки → `signals.py` по образцу `apps/appointments/signals.py` + `ready()`
++ тест с `captureOnCommitCallbacks` и моком `send_max_notification_task.delay`.
 
 ### Throttling
 `@throttle_lead_form` из `apps/common/throttling.py` — 10 отправок с одного IP в минуту;
