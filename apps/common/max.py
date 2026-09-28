@@ -16,8 +16,8 @@ class MaxDeliveryError(Exception):
     """Не удалось доставить сообщение в MAX.
 
     Собственный класс нужен, чтобы наружу не уходил текст исключения
-    `requests`: токен бота передаётся query-параметром и попал бы
-    в сообщение об ошибке, а оттуда — в логи Celery.
+    `requests`: он может содержать URL и детали запроса, а оттуда всё
+    попадает в логи Celery.
     """
 
 
@@ -35,10 +35,11 @@ def send_max_message(text: str) -> None:
     try:
         response = requests.post(
             url,
-            params={
-                "access_token": settings.MAX_BOT_TOKEN,
-                "chat_id": settings.MAX_CHAT_ID,
-            },
+            # Токен — сырой строкой в заголовке, без префикса «Bearer»
+            # (с ним API отвечает 401). Передача через query-параметр
+            # access_token больше не поддерживается.
+            headers={"Authorization": settings.MAX_BOT_TOKEN},
+            params={"chat_id": settings.MAX_CHAT_ID},
             json={"text": text},
             timeout=REQUEST_TIMEOUT,
         )

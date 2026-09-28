@@ -368,7 +368,7 @@ class ThrottleDecoratorTest(TestCase):
 
 
 @override_settings(
-    MAX_API_URL="https://botapi.max.ru",
+    MAX_API_URL="https://platform-api2.max.ru",
     MAX_BOT_TOKEN="token-123",
     MAX_CHAT_ID="-100500",
 )
@@ -379,12 +379,24 @@ class SendMaxMessageTest(TestCase):
 
         post.assert_called_once()
         args, kwargs = post.call_args
-        self.assertEqual(args[0], "https://botapi.max.ru/messages")
-        self.assertEqual(
-            kwargs["params"], {"access_token": "token-123", "chat_id": "-100500"}
-        )
+        self.assertEqual(args[0], "https://platform-api2.max.ru/messages")
+        self.assertEqual(kwargs["params"], {"chat_id": "-100500"})
         self.assertEqual(kwargs["json"], {"text": "привет"})
         self.assertEqual(kwargs["timeout"], 10)
+
+    @patch("apps.common.max.requests.post")
+    def test_token_goes_to_authorization_header_without_bearer(self, post):
+        send_max_message("привет")
+
+        headers = post.call_args.kwargs["headers"]
+        self.assertEqual(headers["Authorization"], "token-123")
+        self.assertNotIn("Bearer", headers["Authorization"])
+
+    @patch("apps.common.max.requests.post")
+    def test_token_never_goes_into_query(self, post):
+        send_max_message("привет")
+
+        self.assertNotIn("access_token", post.call_args.kwargs["params"])
 
     @patch("apps.common.max.requests.post")
     def test_raises_on_error_response(self, post):
@@ -407,7 +419,7 @@ class SendMaxMessageTest(TestCase):
     @patch("apps.common.max.requests.post")
     def test_network_error_never_leaks_bot_token(self, post):
         post.side_effect = requests.ConnectionError(
-            "failed for url: https://botapi.max.ru/messages?access_token=token-123"
+            "failed for url: https://platform-api2.max.ru/messages (token-123)"
         )
 
         with self.assertRaises(MaxDeliveryError) as ctx:
@@ -415,12 +427,14 @@ class SendMaxMessageTest(TestCase):
 
         self.assertNotIn("token-123", str(ctx.exception))
 
-    @override_settings(MAX_API_URL="https://botapi.max.ru/")
+    @override_settings(MAX_API_URL="https://platform-api2.max.ru/")
     @patch("apps.common.max.requests.post")
     def test_strips_trailing_slash_in_api_url(self, post):
         send_max_message("привет")
 
-        self.assertEqual(post.call_args[0][0], "https://botapi.max.ru/messages")
+        self.assertEqual(
+            post.call_args[0][0], "https://platform-api2.max.ru/messages"
+        )
 
 
 class QueueMaxNotificationTest(TestCase):
@@ -448,7 +462,7 @@ class QueueMaxNotificationTest(TestCase):
 
 class SendMaxNotificationTaskTest(TestCase):
     @override_settings(
-        MAX_API_URL="https://botapi.max.ru",
+        MAX_API_URL="https://platform-api2.max.ru",
         MAX_BOT_TOKEN="token-123",
         MAX_CHAT_ID="-100500",
     )
@@ -512,7 +526,7 @@ class FormatLeadMessageTest(TestCase):
         self.assertNotIn("None", text)
 
 
-@override_settings(MAX_API_URL="https://botapi.max.ru")
+@override_settings(MAX_API_URL="https://platform-api2.max.ru")
 class SendMaxMessageWithoutCredentialsTest(TestCase):
     @override_settings(MAX_BOT_TOKEN="", MAX_CHAT_ID="-100500")
     @patch("apps.common.max.requests.post")

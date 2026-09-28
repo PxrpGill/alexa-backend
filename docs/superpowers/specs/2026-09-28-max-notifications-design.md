@@ -15,7 +15,7 @@
 ## Что уже есть (входные условия)
 
 - Бот в MAX создан, токен и `chat_id` чата на руках, бот добавлен в чат.
-  Интеграция — через MAX Bot API (`https://botapi.max.ru`).
+  Интеграция — через MAX Bot API (`https://platform-api2.max.ru`).
 - Пять типов заявок с одинаковым контрактом lead-форм:
   `Appointment`, `DMS`, `Consultation`, `PromotionRequests`, `Application` (отклик на вакансию).
 - Celery с redis-брокером, под тестами — eager.
@@ -41,9 +41,12 @@
 **`apps/common/max.py`**
 
 - `send_max_message(text: str) -> None`
-  `POST {MAX_API_URL}/messages` с query-параметрами `access_token` и `chat_id`
-  и телом `{"text": text}`. Таймаут 10 секунд, `raise_for_status()`.
-  Ошибка пробрасывается наружу — её ловит Celery и ретраит.
+  `POST {MAX_API_URL}/messages` с токеном в заголовке `Authorization` (сырой строкой,
+  без префикса `Bearer` — с ним API отвечает 401), `chat_id` query-параметром
+  и телом `{"text": text}`. Таймаут 10 секунд.
+  Не-2xx и сетевая ошибка поднимают `MaxDeliveryError` — текст исключения `requests`
+  наружу не уходит, чтобы детали запроса не оседали в логах. Ошибку ловит Celery и ретраит.
+  При пустом `MAX_BOT_TOKEN` или `MAX_CHAT_ID` запрос не отправляется вовсе.
 - `queue_max_notification(text: str) -> None`
   Если `settings.MAX_NOTIFICATIONS_ENABLED` ложно — молча выходит.
   Иначе ставит `send_max_notification_task.delay(text)` внутри `try/except Exception`
@@ -123,7 +126,7 @@ Plain text, без markdown/html — не нужно экранирование 
 `config/settings/base.py`:
 
 ```python
-MAX_API_URL = config("MAX_API_URL", default="https://botapi.max.ru")
+MAX_API_URL = config("MAX_API_URL", default="https://platform-api2.max.ru")
 MAX_BOT_TOKEN = config("MAX_BOT_TOKEN", default="")
 MAX_CHAT_ID = config("MAX_CHAT_ID", default="")
 MAX_NOTIFICATIONS_ENABLED = config(
@@ -170,6 +173,16 @@ SITE_URL = config("SITE_URL", default="http://localhost:8000")
 - Пустые заготовки `apps/dms/tests.py` и `apps/consultation/tests.py` заполняются.
 
 Реальных HTTP-запросов в тестах нет. Разработка по TDD: тест → реализация.
+
+## История контракта API
+
+Первая редакция этой спеки фиксировала домен `botapi.max.ru` и токен в query-параметре
+`access_token`. Сверка с документацией MAX перед боевым запуском показала, что схема
+устарела: домен переехал `botapi.max.ru` → `platform-api.max.ru` → `platform-api2.max.ru`
+(последний переезд 19 июля 2026), а передача токена через query-параметры больше
+не поддерживается — только заголовок `Authorization`. Контракт выше отражает актуальную
+схему. Моки в тестах подтверждают наши допущения, а не реальное API, поэтому боевая
+отправка проверяется вручную (см. план).
 
 ## Что не входит
 

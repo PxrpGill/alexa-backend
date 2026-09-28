@@ -155,7 +155,7 @@ CELERY_BROKER_TRANSPORT_OPTIONS = {
 }
 
 # Уведомления о заявках в мессенджер MAX (apps/common/max.py).
-MAX_API_URL = config("MAX_API_URL", default="https://botapi.max.ru")
+MAX_API_URL = config("MAX_API_URL", default="https://platform-api2.max.ru")
 MAX_BOT_TOKEN = config("MAX_BOT_TOKEN", default="")
 MAX_CHAT_ID = config("MAX_CHAT_ID", default="")
 MAX_NOTIFICATIONS_ENABLED = config(

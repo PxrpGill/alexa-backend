@@ -61,8 +61,10 @@ Every lead model notifies a shared MAX chat from a `post_save` receiver in its a
 (`apps/common/max.py`), which formats the text inside a `try/except` and queues the task
 on commit. Delivery is the Celery task `send_max_notification_task` (3 retries). Neither a
 formatting failure, a dead broker nor a failing MAX ever breaks `save()` or the API
-response. Delivery errors are wrapped in `MaxDeliveryError` — the bot token travels as a
-query parameter and would otherwise leak into logs via the `requests` error text.
+response. Delivery errors are wrapped in `MaxDeliveryError` so the `requests` error text never
+leaks request details into logs. The API is `https://platform-api2.max.ru`; the token goes
+in the `Authorization` header as a raw string (a `Bearer` prefix returns 401) and
+`chat_id` is a query parameter.
 
 Disabled until `MAX_BOT_TOKEN` and `MAX_CHAT_ID` are set (`MAX_NOTIFICATIONS_ENABLED`),
 so dev and CI make no network calls. Admin links come from `SITE_URL`. Resume files are
