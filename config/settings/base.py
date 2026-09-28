@@ -124,6 +124,15 @@ CACHES = {
     }
 }
 
+# Отдавать защищённые файлы (резюме) через nginx X-Accel-Redirect вместо
+# стриминга из Django. Требует internal-location в nginx.conf.
+USE_X_ACCEL_REDIRECT = config("USE_X_ACCEL_REDIRECT", default=not DEBUG, cast=bool)
+
+# Доверять X-Real-IP / X-Forwarded-For при определении IP клиента
+# (apps/common/throttling.py). Включать только когда перед Django стоит nginx:
+# иначе клиент сможет подделать заголовок и обойти rate limit.
+TRUST_PROXY_HEADERS = config("TRUST_PROXY_HEADERS", default=not DEBUG, cast=bool)
+
 CORS_ALLOWED_ORIGINS = config(
     "CORS_ALLOWED_ORIGINS",
     default="http://localhost:3000",

@@ -64,8 +64,13 @@ GitHub (main) ──push──▶ GitHub Actions
 
 ```bash
 adduser deploy
-usermod -aG sudo deploy
 ```
+
+> Не добавляйте `deploy` в группу `sudo`: SSH-ключ этого пользователя лежит в
+> секретах GitHub, и полный sudo означает «утечка секрета = root на сервере».
+> Для деплоя достаточно группы `docker` (шаг 4.2) — CI ничего не делает под sudo.
+> Если sudo всё же нужен, выдайте его точечно через `visudo -f /etc/sudoers.d/deploy`
+> на конкретные команды, с `NOPASSWD` только для них.
 
 ### 4.2. Установить Docker + docker-compose
 
@@ -88,7 +93,8 @@ usermod -aG docker deploy
 ### 4.3. Файрвол (UFW)
 
 ```bash
-  c
+# ВАЖНО: SSH разрешаем ПЕРВЫМ, иначе `ufw enable` обрубит текущую сессию
+ufw allow OpenSSH        # или `ufw allow 22/tcp`, если SSH на нестандартном порту
 ufw allow 80/tcp
 ufw allow 443/tcp
 ufw enable
@@ -192,6 +198,21 @@ sed -i 's/YOUR_DOMAIN/yourdomain.com/g' docker/prod/nginx/nginx.conf
 # Ключевой шаг: git pull при деплоях больше НЕ будет перезаписывать этот файл
 git update-index --skip-worktree docker/prod/nginx/nginx.conf
 ```
+
+> ⚠️ Обратная сторона `skip-worktree`: изменения `nginx.conf` из репозитория на
+> сервер **не приезжают никогда**. Правки конфига (новый `resolver`, лимиты,
+> internal-location для резюме) нужно переносить руками:
+> ```bash
+> git update-index --no-skip-worktree docker/prod/nginx/nginx.conf
+> git checkout -- docker/prod/nginx/nginx.conf && git pull origin main
+> sed -i 's/YOUR_DOMAIN/yourdomain.com/g' docker/prod/nginx/nginx.conf
+> git update-index --skip-worktree docker/prod/nginx/nginx.conf
+> ```
+> Рядом лежит `docker/prod/nginx/proxy_to_web.inc` — он под skip-worktree НЕ нужен
+> (домена в нём нет) и обновляется обычным `git pull`. Сейчас весь каталог
+> `docker/prod/nginx/` монтируется в `/etc/nginx/conf.d/`, поэтому оба файла
+> оказываются в контейнере. После правок: `docker-compose ... exec nginx nginx -t`
+> и `... exec nginx nginx -s reload`.
 
 > Без `skip-worktree` каждый деплой возвращал бы в nginx.conf заглушку
 > `YOUR_DOMAIN` и ломал SSL. Проверить статус: `git ls-files -v docker/prod/nginx/nginx.conf`
@@ -318,11 +339,17 @@ docker-compose -f docker/prod/docker-compose.yml logs -f nginx      # http
 Добавить в crontab на сервере (`crontab -e`):
 
 ```cron
-0 3 * * * docker exec alexa-backend-db-1 pg_dump -U alexa alexa | gzip > /opt/backups/alexa_$(date +\%F).sql.gz
+0 3 * * * docker exec prod-db-1 pg_dump -U alexa alexa | gzip > /opt/backups/alexa_$(date +\%F).sql.gz
 ```
 
-> Имя контейнера посмотреть: `docker ps --format '{{.Names}}'`. Восстановление:
-> `gunzip -c backup.sql.gz | docker exec -i <имя> psql -U alexa alexa`.
+> Имя проекта compose — `prod` (закреплено ключом `name:` в compose-файле), поэтому
+> контейнер БД называется `prod-db-1` (на старом docker-compose v1 — `prod_db_1`).
+> Проверьте своё: `docker ps --format '{{.Names}}'`, и что каталог существует:
+> `mkdir -p /opt/backups`. Восстановление:
+> `gunzip -c backup.sql.gz | docker exec -i prod-db-1 psql -U alexa alexa`.
+>
+> После настройки убедитесь, что бэкапы реально появляются (`ls -l /opt/backups`) —
+> крон молча ничего не делает, если имя контейнера не совпало.
 
 ### Обновление вручную (без CI)
 
@@ -349,7 +376,9 @@ docker-compose -f docker/prod/docker-compose.yml up -d web worker
 
 | Симптом | Причина / решение |
 |---|---|
-| `502 Bad Gateway` | упал gunicorn: `docker-compose logs web`; часто — упал Celery/Redis, проверьте `depends_on` |
+| `502 Bad Gateway` сразу после деплоя | nginx держит старый IP контейнера `web`. Лечится `exec nginx nginx -s reload` (CI делает это сам), навсегда — `resolver` + `proxy_pass` через переменную в nginx.conf. Проверьте, что на сервере лежит актуальный nginx.conf (см. §7.2) |
+| `502 Bad Gateway` в остальных случаях | упал gunicorn: `docker-compose logs web`; часто — упал Celery/Redis |
+| HTTPS с просроченным сертификатом | nginx не перечитал обновлённый certbot-ом сертификат. В compose у nginx есть цикл `nginx -s reload` раз в 6 часов — проверьте, что `command:` не потерян |
 | `400 Bad Request` | `ALLOWED_HOSTS` не содержит домен в `.env.prod` |
 | SSL не выдаётся | DNS ещё не пропагировался; порт 80 закрыт файрволом; `YOUR_DOMAIN` остался в nginx.conf |
 | nginx не стартует после первого запуска | не выполнен bootstrap из шага 7.3 (нет сертификатов) |
@@ -361,9 +390,69 @@ docker-compose -f docker/prod/docker-compose.yml up -d web worker
 
 ## 13. Рекомендуемые улучшения (не обязательно сразу)
 
-- Добавить в CI **прогон тестов** перед сборкой (`python manage.py test`).
-- Добавить `healthcheck` для `web` в compose (curl `/api/v1/docs`).
+- ~~Добавить в CI прогон тестов перед сборкой~~ — сделано, job `test` в workflow.
+- ~~Добавить `healthcheck` в compose~~ — сделано для `db`, `redis`, `web`.
+- Закрепить GitHub Actions по commit-SHA вместо плавающих тегов (`@v1`, `@v5`)
+  и ставить docker-compose фиксированной версией, а не из `releases/latest`.
+- Деплоить образ по тегу коммита (`:<sha>`) вместо `:latest` — появится откат.
 - Перейти с `docker-compose` (standalone) на плагин `docker compose` v2 и поправить
   workflow/Makefile — единая команда, встроенная в Docker.
 - Настроить `SENTRY_DSN` для мониторинга ошибок продакшена.
 - Слать уведомления о деплое в Telegram/Slack через `workflow_dispatch` + notify.
+
+---
+
+## 14. Разовые шаги после обновления инфраструктуры (2026-09-28)
+
+Изменения в репозитории, которые **не применяются сами** — выполнить по порядку
+один раз при первом деплое этой версии.
+
+**1. Перенести новый nginx.conf на сервер** (он под `skip-worktree`, см. §7.2).
+Проверить, что в нём есть `resolver 127.0.0.11`, `include .../proxy_to_web.inc`
+и `location /media/vacancies/resumes/ { internal; }`.
+
+```bash
+docker-compose -f docker/prod/docker-compose.yml up -d nginx   # смена монтирования на каталог
+docker-compose -f docker/prod/docker-compose.yml exec nginx nginx -t
+```
+
+**2. Отдать тома непривилегированному пользователю.** Образ теперь работает от
+`uid 10001`, а существующие тома принадлежат root — без chown упадут
+`collectstatic` и загрузка файлов в админке.
+
+```bash
+docker-compose -f docker/prod/docker-compose.yml down
+docker run --rm -v prod_static_volume:/s -v prod_media_volume:/m alpine \
+    chown -R 10001:10001 /s /m
+docker-compose -f docker/prod/docker-compose.yml up -d
+```
+
+**3. Проверить, что заявки и резюме работают:**
+
+```bash
+curl -i -X POST https://yourdomain.com/api/v1/consultation \
+     -H 'Content-Type: application/json' -d '{"patient_name":"Тест","patient_phone":"+70000000000","branch_slug":"<slug>","is_privacy_agreement":true}'
+# 11-й запрос за минуту должен дать 429
+
+curl -I https://yourdomain.com/media/vacancies/resumes/<любой_файл>.pdf   # ожидаем 404
+# скачивание резюме — только из админки (ссылка «Скачать» в отклике)
+```
+
+**4. Убрать `deploy` из группы sudo** (см. §4.1), если он там есть:
+`gpasswd -d deploy sudo`. Из workflow вызов `sudo` удалён.
+
+### Не сделано автоматически — требует вашего решения
+
+- **Пароль на Redis.** Брокер доступен без аутентификации всем контейнерам в сети.
+  Включается только вместе с правкой `.env.prod`, иначе деплой упадёт:
+  добавить `REDIS_PASSWORD=<...>`, в compose — `command: redis-server --requirepass ${REDIS_PASSWORD}`,
+  и переписать `CELERY_BROKER_URL` / `REDIS_URL` на `redis://:<пароль>@redis:6379/N`.
+- **Разделение секретов.** Контейнеры `db` и `redis` читают целиком `.env.prod`
+  (включая `SECRET_KEY`). Чище — отдельный `.env.db` только с `POSTGRES_*`;
+  файл нужно создать на сервере ДО деплоя, иначе compose не стартует.
+- **Ограничение доступа к `/admin/` по IP** — если у клиники фиксированные адреса,
+  в nginx: `location /admin/ { allow <ip>; deny all; ... }`. Сейчас стоит только
+  rate limit 5 попыток входа в минуту.
+- **Роли не изолируют данные.** Любой staff-аккаунт видит заявки всех филиалов
+  (`BranchFilterMixin` был удалён вместе со старым приложением `branches`).
+  Возврат разграничения — отдельная задача: FK `User.branch` + фильтрация queryset.

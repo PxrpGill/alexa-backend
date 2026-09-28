@@ -6,14 +6,21 @@ from apps.branch.models import BranchModel
 
 from .models import Appointment
 from .schemas import AppointmentCreateSchema
+from ..common.throttling import throttle_lead_form
 from ..common.schemas import SuccessResponseMessageSchema, ErrorResponseMessageSchema
 
 router = Router(tags=["Запись на приём"])
 
 
 @router.post(
-    "", response={201: SuccessResponseMessageSchema, 400: ErrorResponseMessageSchema}
+    "",
+    response={
+        201: SuccessResponseMessageSchema,
+        400: ErrorResponseMessageSchema,
+        429: ErrorResponseMessageSchema,
+    },
 )
+@throttle_lead_form
 def create_appointment(request: HttpRequest, payload: AppointmentCreateSchema):
     """Создать запись на приём. Возвращает созданную запись (201)."""
 

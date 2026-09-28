@@ -2,6 +2,7 @@ import shutil
 import tempfile
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 
@@ -470,3 +471,78 @@ class GeneralApplyAPITest(VacanciesBaseTestCase):
         application = Application.objects.get()
         self.assertIsNone(application.vacancy)
         self.assertTrue(application.privacy_policy_accepted)
+
+
+class ResumeDownloadTest(TestCase):
+    """Резюме отдаётся только сотрудникам, файл не лежит в публичном /media/."""
+
+    def setUp(self):
+        self.media_root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.media_root, ignore_errors=True)
+
+        self.override = override_settings(MEDIA_ROOT=self.media_root)
+        self.override.enable()
+        self.addCleanup(self.override.disable)
+
+        self.client = Client()
+        self.application = Application.objects.create(
+            name="Иван Иванов",
+            phone="+79991234567",
+            resume=make_resume(),
+            privacy_policy_accepted=True,
+        )
+        self.url = f"/staff/vacancies/resume/{self.application.pk}/"
+
+    def test_anonymous_is_redirected_to_login(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/admin/login/', response['Location'])
+
+    def test_non_staff_user_is_redirected(self):
+        User = get_user_model()
+        User.objects.create_user(username='patient', password='pwd12345', is_staff=False)
+        self.client.login(username='patient', password='pwd12345')
+
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 302)
+
+    def test_staff_gets_file_in_dev_mode(self):
+        self._login_staff()
+
+        with override_settings(USE_X_ACCEL_REDIRECT=False):
+            response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('attachment', response['Content-Disposition'])
+        self.assertEqual(b''.join(response.streaming_content), b"%PDF-1.4 test resume")
+
+    def test_staff_gets_x_accel_redirect_in_prod_mode(self):
+        self._login_staff()
+
+        with override_settings(USE_X_ACCEL_REDIRECT=True):
+            response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response['X-Accel-Redirect'],
+            f'{settings.MEDIA_URL}{self.application.resume.name}',
+        )
+        self.assertIn(
+            f'resume-{self.application.pk}.pdf', response['Content-Disposition']
+        )
+
+    def test_missing_resume_returns_404(self):
+        self._login_staff()
+        empty = Application.objects.create(
+            name="Без резюме", phone="+79991234567", privacy_policy_accepted=True
+        )
+
+        response = self.client.get(f'/staff/vacancies/resume/{empty.pk}/')
+        self.assertEqual(response.status_code, 404)
+
+    def _login_staff(self):
+        User = get_user_model()
+        User.objects.create_user(
+            username='manager', password='pwd12345', is_staff=True
+        )
+        self.client.login(username='manager', password='pwd12345')
