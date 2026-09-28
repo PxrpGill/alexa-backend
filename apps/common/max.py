@@ -4,6 +4,7 @@ import logging
 
 import requests
 from django.conf import settings
+from django.urls import reverse
 
 logger = logging.getLogger("apps.common.max")
 
@@ -44,3 +45,22 @@ def queue_max_notification(text: str) -> None:
         send_max_notification_task.delay(text)
     except Exception:
         logger.exception("Не удалось поставить уведомление MAX в очередь")
+
+
+def admin_change_url(obj) -> str:
+    """Абсолютная ссылка на страницу редактирования объекта в админке."""
+    meta = obj._meta
+    path = reverse(f"admin:{meta.app_label}_{meta.model_name}_change", args=[obj.pk])
+    return f"{settings.SITE_URL.rstrip('/')}{path}"
+
+
+def format_lead_message(title: str, rows, obj) -> str:
+    """Собрать текст уведомления о заявке.
+
+    `rows` — пары («Подпись», значение). Пустые значения пропускаются,
+    поэтому необязательные поля (филиал, вакансия) просто исчезают из текста.
+    """
+    lines = [title, ""]
+    lines += [f"{label}: {value}" for label, value in rows if value]
+    lines += ["", f"Открыть в админке: {admin_change_url(obj)}"]
+    return "\n".join(lines)

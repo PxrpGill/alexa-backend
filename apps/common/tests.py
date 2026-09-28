@@ -13,12 +13,19 @@ from django.test import RequestFactory, TestCase, override_settings
 from PIL import Image
 
 from apps.common.images import generate_image_variants
-from apps.common.max import queue_max_notification, send_max_message
+from apps.common.max import (
+    admin_change_url,
+    format_lead_message,
+    queue_max_notification,
+    send_max_message,
+)
 from apps.common.schemas import build_picture_format
 from apps.common.tasks import generate_image_variants_task, send_max_notification_task
 from apps.common.test_utils import FieldFileStub, make_test_image
 from apps.common.throttling import get_client_ip, throttle
 from apps.common.typography import typograph_html, typograph_text
+from apps.appointments.models import Appointment
+from apps.branch.models import BranchModel
 from apps.doctors.models import Doctor
 
 
@@ -427,3 +434,56 @@ class SendMaxNotificationTaskTest(TestCase):
         send_max_notification_task("привет")
 
         post.assert_called_once()
+
+
+@override_settings(SITE_URL="https://alexa.ru")
+class FormatLeadMessageTest(TestCase):
+    def setUp(self):
+        self.branch = BranchModel.objects.create(name="Центральный")
+        self.appointment = Appointment.objects.create(
+            patient_name="Иван Иванов",
+            patient_phone="+79991234567",
+            branch=self.branch,
+            is_privacy_agreement=True,
+        )
+
+    def test_admin_change_url_points_to_object(self):
+        url = admin_change_url(self.appointment)
+
+        self.assertEqual(
+            url,
+            f"https://alexa.ru/admin/appointments/appointment/{self.appointment.pk}/change/",
+        )
+
+    @override_settings(SITE_URL="https://alexa.ru/")
+    def test_admin_change_url_strips_trailing_slash(self):
+        url = admin_change_url(self.appointment)
+
+        self.assertNotIn("//admin", url.replace("https://", ""))
+
+    def test_message_contains_title_rows_and_admin_link(self):
+        text = format_lead_message(
+            "🦷 Новая запись на приём",
+            [("Имя", "Иван Иванов"), ("Телефон", "+79991234567")],
+            self.appointment,
+        )
+
+        lines = text.split("\n")
+        self.assertEqual(lines[0], "🦷 Новая запись на приём")
+        self.assertIn("Имя: Иван Иванов", text)
+        self.assertIn("Телефон: +79991234567", text)
+        self.assertIn(
+            f"Открыть в админке: https://alexa.ru/admin/appointments/appointment/{self.appointment.pk}/change/",
+            text,
+        )
+
+    def test_message_skips_empty_rows(self):
+        text = format_lead_message(
+            "🦷 Новая запись на приём",
+            [("Имя", "Иван Иванов"), ("Филиал", None), ("Страница", "")],
+            self.appointment,
+        )
+
+        self.assertNotIn("Филиал", text)
+        self.assertNotIn("Страница", text)
+        self.assertNotIn("None", text)
