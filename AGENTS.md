@@ -61,8 +61,10 @@ When adding a new lead-type endpoint, replicate this exact shape.
   Never use `REMOTE_ADDR` directly — behind nginx it is the proxy's own address.
 - Private uploads (CV files) are served by `apps/vacancies/views.download_resume`
   (staff-only, X-Accel-Redirect); `/media/vacancies/resumes/` is `internal` in nginx.
-- `docker/prod/nginx/nginx.conf` is `skip-worktree` on the server — repo edits must be
-  copied over by hand (`docs/deploy.md` §7.2 and §14).
+- `docker/prod/nginx/default.conf.template` is an envsubst template: `${DOMAIN}` comes
+  from `.env.prod` at container start (`NGINX_ENVSUBST_FILTER=DOMAIN`), so config edits
+  ship with a normal deploy. Only `${DOMAIN}` is substituted — nginx's own `$host`,
+  `$binary_remote_addr` etc. survive.
 
 ## Gotchas
 

@@ -182,6 +182,7 @@ POSTGRES_DB=alexa
 POSTGRES_USER=alexa
 POSTGRES_PASSWORD=<тот же пароль, что DB_PASSWORD>
 
+DOMAIN=yourdomain.com                # подставляется в nginx-шаблон при старте контейнера
 DOCKER_IMAGE=ghcr.io/pxrpgill/alexa-backend:latest   # ВАЖНО: имя образа в GHCR ТОЛЬКО в нижнем регистре
 
 CELERY_BROKER_URL=redis://redis:6379/0
@@ -189,35 +190,34 @@ CELERY_BROKER_URL=redis://redis:6379/0
 
 Файл в `.gitignore` (git pull его не трогает). **Никогда не коммитьте его.**
 
-### 7.2. Домен в nginx + защита от перезаписи при git pull
+### 7.2. Домен в nginx
 
-```bash
-cd /opt/alexa-backend
-sed -i 's/YOUR_DOMAIN/yourdomain.com/g' docker/prod/nginx/nginx.conf
+Домена в конфиге нет: `docker/prod/nginx/default.conf.template` — шаблон, в котором
+официальный образ nginx подставляет `${DOMAIN}` через envsubst при каждом старте
+контейнера. Значение берётся из `.env.prod` (шаг 7.1):
 
-# Ключевой шаг: git pull при деплоях больше НЕ будет перезаписывать этот файл
-git update-index --skip-worktree docker/prod/nginx/nginx.conf
+```
+DOMAIN=yourdomain.com
 ```
 
-> ⚠️ Обратная сторона `skip-worktree`: изменения `nginx.conf` из репозитория на
-> сервер **не приезжают никогда**. Правки конфига (новый `resolver`, лимиты,
-> internal-location для резюме) нужно переносить руками:
-> ```bash
-> git update-index --no-skip-worktree docker/prod/nginx/nginx.conf
-> git checkout -- docker/prod/nginx/nginx.conf && git pull origin main
-> sed -i 's/YOUR_DOMAIN/yourdomain.com/g' docker/prod/nginx/nginx.conf
-> git update-index --skip-worktree docker/prod/nginx/nginx.conf
-> ```
-> Рядом лежит `docker/prod/nginx/proxy_to_web.inc` — он под skip-worktree НЕ нужен
-> (домена в нём нет) и обновляется обычным `git pull`. Сейчас весь каталог
-> `docker/prod/nginx/` монтируется в `/etc/nginx/conf.d/`, поэтому оба файла
-> оказываются в контейнере. После правок: `docker-compose ... exec nginx nginx -t`
-> и `... exec nginx nginx -s reload`.
+Ничего править и защищать от `git pull` не нужно — конфиг обновляется обычным
+деплоем. Проверить, что получилось внутри контейнера:
 
-> Без `skip-worktree` каждый деплой возвращал бы в nginx.conf заглушку
-> `YOUR_DOMAIN` и ломал SSL. Проверить статус: `git ls-files -v docker/prod/nginx/nginx.conf`
-> (строчная `S` = защищён). Снять защиту при осознанной правке:
-> `git update-index --no-skip-worktree docker/prod/nginx/nginx.conf`.
+```bash
+docker-compose -f docker/prod/docker-compose.yml exec nginx \
+    grep -n 'server_name\|ssl_certificate ' /etc/nginx/conf.d/default.conf
+```
+
+Подставляется **только** `${DOMAIN}` (`NGINX_ENVSUBST_FILTER=DOMAIN` в compose),
+поэтому переменные nginx (`$host`, `$binary_remote_addr`, `$upstream_web`) остаются
+нетронутыми. Каталог `docker/prod/nginx/` монтируется в `/etc/nginx/templates/`,
+результат envsubst попадает в `/etc/nginx/conf.d/`.
+
+> Исторически здесь был `git update-index --skip-worktree` на файл с вручную
+> подставленным доменом. От этого отказались: `skip-worktree` не защищает от
+> `git pull`, который сам меняет этот файл — git отказывается мержить с ошибкой
+> «Your local changes would be overwritten by merge», и деплой встаёт насмерть.
+> Если на сервере защита ещё стоит, снимите её (см. §15).
 
 ### 7.3. Первичная выдача SSL (bootstrap)
 
@@ -407,48 +407,8 @@ docker-compose -f docker/prod/docker-compose.yml up -d web worker
 Изменения в репозитории, которые **не применяются сами** — выполнить по порядку
 один раз при первом деплое этой версии.
 
-**1. Перенести новый nginx.conf на сервер** (он под `skip-worktree`, см. §7.2).
-
-> ⚠️ Порядок критичен. `git checkout` возвращает файл из репозитория, то есть
-> ШАБЛОН с `YOUR_DOMAIN`. Если поднять nginx до подстановки домена, он не найдёт
-> сертификат `/etc/letsencrypt/live/YOUR_DOMAIN/fullchain.pem`, уйдёт в
-> restart-loop, и сайт ляжет. Домен подставляем ДО `up -d`, конфиг проверяем
-> отдельным контейнером — в перезапускающийся `exec nginx -t` не зайти.
-
-```bash
-cd /opt/alexa-backend
-
-# 1.1 Точное имя каталога сертификата — его и подставляем в пути
-docker run --rm -v prod_certbot_certs:/etc/letsencrypt alpine ls -1 /etc/letsencrypt/live/
-
-# 1.2 Забрать новый конфиг из репозитория и сразу подставить домен
-cp docker/prod/nginx/nginx.conf ~/nginx.conf.bak
-git update-index --no-skip-worktree docker/prod/nginx/nginx.conf
-git checkout -- docker/prod/nginx/nginx.conf && git pull origin main
-sed -i 's/YOUR_DOMAIN/yourdomain.com/g' docker/prod/nginx/nginx.conf
-grep -c YOUR_DOMAIN docker/prod/nginx/nginx.conf      # обязательно 0
-git update-index --skip-worktree docker/prod/nginx/nginx.conf
-
-# 1.3 Проверить конфиг, НЕ трогая работающий nginx
-docker run --rm \
-    -v /opt/alexa-backend/docker/prod/nginx:/etc/nginx/conf.d:ro \
-    -v prod_certbot_certs:/etc/letsencrypt:ro \
-    nginx:alpine nginx -t
-
-# 1.4 Только после "test is successful" (смена монтирования на каталог)
-docker-compose -f docker/prod/docker-compose.yml up -d nginx
-```
-
-Проверить, что в конфиге есть `resolver 127.0.0.11`, `include .../proxy_to_web.inc`
-и `location /media/vacancies/resumes/ { internal; }`.
-
-Если имя каталога в 1.1 отличается от чистого домена (`www.yourdomain.com`,
-`yourdomain.com-0001`), подставляйте значения раздельно: пути к сертификатам —
-имя каталога, `server_name` — сам домен. Нет `chain.pem` — убрать строку
-`ssl_trusted_certificate`, она не обязательна.
-
-Откат при любой ошибке: `cp ~/nginx.conf.bak docker/prod/nginx/nginx.conf`
-и снова `up -d nginx`.
+**1. nginx-конфиг больше не переносится руками** — он стал шаблоном с `${DOMAIN}`
+(см. §7.2). Разовые действия описаны в §15, их нужно выполнить **до** мержа.
 
 **2. Отдать тома непривилегированному пользователю.** Образ теперь работает от
 `uid 10001`, а существующие тома принадлежат root — без chown упадут
@@ -490,3 +450,44 @@ curl -I https://yourdomain.com/media/vacancies/resumes/<любой_файл>.pdf
 - **Роли не изолируют данные.** Любой staff-аккаунт видит заявки всех филиалов
   (`BranchFilterMixin` был удалён вместе со старым приложением `branches`).
   Возврат разграничения — отдельная задача: FK `User.branch` + фильтрация queryset.
+
+---
+
+## 15. Переход на nginx-шаблон с ${DOMAIN} (разово, до мержа)
+
+Было: на сервере лежал `nginx.conf` с вручную подставленным доменом под
+`git update-index --skip-worktree`. Это ломает деплой каждый раз, когда конфиг
+меняется в репозитории: `git pull` отказывается перезаписывать локально изменённый
+файл и job падает на первом же шаге.
+
+Стало: домен живёт в `.env.prod`, конфиг — шаблон, подстановка на старте контейнера.
+
+**Выполнить на сервере ДО мержа ветки в `main`** (иначе деплой снова упадёт на pull):
+
+```bash
+cd /opt/alexa-backend
+
+# 1. Домен в окружение
+echo 'DOMAIN=yourdomain.com' >> docker/prod/.env.prod
+grep '^DOMAIN=' docker/prod/.env.prod
+
+# 2. Снять защиту и выбросить локальную версию конфига —
+#    в репозитории этого файла больше нет, он заменён шаблоном
+git update-index --no-skip-worktree docker/prod/nginx/nginx.conf
+git checkout -- docker/prod/nginx/nginx.conf
+git ls-files -v docker/prod/nginx/ | grep -v '^H' || echo 'защищённых файлов не осталось'
+```
+
+Дальше мержите в `main` — деплой сам заберёт шаблон, соберёт конфиг и поднимет nginx.
+
+Если `DOMAIN` забыть, compose остановится на интерполяции с сообщением
+«required variable DOMAIN is missing a value» **до** того, как тронет контейнеры:
+деплой упадёт, но работающий сайт не пострадает.
+
+Проверка после деплоя:
+
+```bash
+docker-compose -f docker/prod/docker-compose.yml exec nginx \
+    grep -n 'server_name\|ssl_certificate ' /etc/nginx/conf.d/default.conf
+curl -s -o /dev/null -w '%{http_code}\n' https://yourdomain.com/api/v1/branches/
+```
