@@ -24,3 +24,50 @@ class PromotionRequestSchema(Schema):
     patient_phone: str
     is_ad_agreement: Optional[bool] = None
     is_privacy_agreement: Optional[bool] = None
+
+
+class PromotionDetailSectionSchema(Schema):
+    title: str
+    content: str
+
+
+class PromotionConditionCardSchema(Schema):
+    icon: Optional[PictureFormatSchema] = None
+    title: str
+    description: str
+
+    @staticmethod
+    def resolve_icon(obj):
+        return build_picture_format(obj.icon)
+
+
+class PromotionConditionsSchema(Schema):
+    title: str
+    cards: list[PromotionConditionCardSchema]
+
+    @staticmethod
+    def resolve_title(obj):
+        return obj.conditions_title
+
+    @staticmethod
+    def resolve_cards(obj):
+        return obj.conditions.all()
+
+
+class PromotionDetailSchema(Schema):
+    slug: str
+    hero: PromotionSchema
+    detail: PromotionDetailSectionSchema
+    conditions: PromotionConditionsSchema
+
+    @staticmethod
+    def resolve_hero(obj):
+        return obj
+
+    @staticmethod
+    def resolve_detail(obj):
+        return {"title": obj.detail_title, "content": obj.detail_description}
+
+    @staticmethod
+    def resolve_conditions(obj):
+        return obj
