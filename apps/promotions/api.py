@@ -25,14 +25,6 @@ def list_promotions(request):
     return active_promotions()
 
 
-@router.get("/{slug}", response=PromotionDetailSchema)
-def get_promotion(request, slug: str):
-    """Внутренняя страница акции: hero, подробное описание и условия."""
-    return get_object_or_404(
-        active_promotions().prefetch_related("conditions"), slug=slug
-    )
-
-
 @router.post(
     "/request",
     response={
@@ -64,3 +56,14 @@ def request_to_promotion(request, payload: PromotionRequestSchema):
         return 201, {"message": "Запись на акцию успешно создана"}
     except Exception:
         return 400, {"message": "Некорректные данные при отправке"}
+
+
+# Объявлен последним намеренно: шаблон "/{slug}" совпадает и с "/request",
+# а Django резолвит пути в порядке регистрации. Если поставить его выше,
+# POST /promotions/request попадёт в этот GET-обработчик и вернёт 405.
+@router.get("/{slug}", response=PromotionDetailSchema)
+def get_promotion(request, slug: str):
+    """Внутренняя страница акции: hero, подробное описание и условия."""
+    return get_object_or_404(
+        active_promotions().prefetch_related("conditions"), slug=slug
+    )
