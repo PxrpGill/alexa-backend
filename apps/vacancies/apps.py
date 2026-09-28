@@ -5,3 +5,6 @@ class VacanciesConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'apps.vacancies'
     verbose_name = 'Вакансии'
+
+    def ready(self):
+        import apps.vacancies.signals  # noqa: F401
