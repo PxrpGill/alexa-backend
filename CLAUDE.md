@@ -1,234 +1,159 @@
-# Alexa Backend — Developer Guide
+# CLAUDE.md
 
-## Проект
-Django 5.1.4 backend для стоматологической клиники Alexa. Мультифилиальная система,
-ролевой admin (superadmin / branch_manager), публичный REST API через Django Ninja.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Быстрый старт
+Django 5.1.4 + django-ninja backend стоматологической клиники «Алекса»: мультифилиальная
+структура, ролевая admin-панель на jazzmin, публичный REST API без аутентификации
+(потребитель — Next.js фронтенд). Язык проекта — русский: `verbose_name`, docstrings,
+сообщения об ошибках API и commit-сообщения на русском.
+
+`AGENTS.md` описывает тот же проект короче — при изменении конвенций правь оба файла.
+
+## Команды
+
+Всё выполняется внутри контейнера `web`; локального запуска без Docker нет.
+
 ```bash
-docker-compose up -d
-docker-compose exec web python manage.py migrate
-docker-compose exec web python manage.py createsuperuser
-# API docs: http://localhost:8000/api/v1/docs
-# Admin:    http://localhost:8000/admin/
+make dev-up                    # db + redis + web(runserver) + worker(celery)
+make dev-down / dev-logs / dev-shell
+make dev-check                 # manage.py check
+make dev-test                  # manage.py test -v 2 --keepdb
+make dev-test-app APP=vacancies
+make dev-migrate APP=vacancies # makemigrations <короткое имя> && migrate
 ```
+
+Один тест-класс или метод — напрямую через compose:
+
+```bash
+docker-compose -f docker/dev/docker-compose.yml exec web \
+  python manage.py test apps.vacancies.tests.ApplicationAPITest.test_apply_ok -v 2 --keepdb
+```
+
+- `--keepdb` обязателен: тестовая БД живёт в docker-volume, пересоздание долгое.
+- Линтера/типизации нет (есть только `.ruff_cache` от ручных запусков). Проверка — `make dev-check` + тесты.
+- Makefile использует standalone-бинарь `docker-compose` (не `docker compose`).
+- Дев-точки входа: API docs `/api/v1/docs`, OpenAPI `/api/v1/openapi.json`, admin `/admin/`.
+
+## Настройки и точки расширения
+
+- `config/settings/{base,dev,prod}.py`; `DJANGO_SETTINGS_MODULE` по умолчанию
+  `config.settings.dev` (задан в `manage.py` и `config/celery.py`), в compose — явно.
+- Новое приложение → добавить в `LOCAL_APPS` в `base.py`. Порядок `INSTALLED_APPS`:
+  `jazzmin` строго перед `django.contrib.admin`.
+- Новый роутер → импорт + `api.add_router("/name", router)` в `config/api.py`.
+- Новая модель в admin → иконка в `JAZZMIN_SETTINGS['icons']` (`app.model` в нижнем регистре).
+- `.env` читается через `python-decouple`; шаблон — `.env.example`, дев-значения —
+  `docker/dev/.env.dev`, прод — `docker/prod/.env.prod.example`.
+
+## Приложения
+
+| App | Содержимое | API |
+|---|---|---|
+| `common` | инфраструктура: `ImageVariantsMixin`, `images.py`, `tasks.py`, `throttling.py`, `typography.py`, общие схемы, `test_utils.py` | — |
+| `users` | `User(AbstractUser)` + `Role` (только роли, **без** FK на филиал) | — |
+| `branch` | `BranchModel` — филиалы | `GET /branches/` |
+| `doctors` | `Doctor`, `Specialization` | `GET /doctors/`, `/doctors/{id}/` |
+| `blog` | `BlogCategory`, `BlogPost` (+ типографика в `save()`) | `GET /blog`, `/blog/{slug}` |
+| `promotions` | `Promotion`, `PromotionRequests` | `GET /promotions`, `POST /promotions/request` |
+| `appointments` | `Appointment` + Telegram-signal stub (`signals.py`, подключён в `apps.py:ready()`) | `POST /appointments` |
+| `dms` | `DMS` — заявки ДМС | `POST /dms` |
+| `consultation` | `Consultation` | `POST /consultation` |
+| `vacancies` | `VacancyCategory`, `Vacancy` + 5 inline-моделей, `Application`, `validators.py` | `GET /vacancies`, `/vacancies/{slug}`, `POST /vacancies/apply`, `/vacancies/{slug}/apply` |
+
+Каждое приложение содержит `models.py`, `admin.py`, `api.py`, `schemas.py`
+(в `branch` файл называется `schema.py`), опционально `tests.py`.
+
+Приложений `apps/branches` и `apps/services` **нет** — они удалены; старые планы в
+`docs/superpowers/` и `.claude/PROJECT_MEMORY.md` описывают ту версию и неактуальны.
+
+## Ключевые конвенции
+
+### Филиалы
+- Модель называется `BranchModel`, cross-app FK — **прямым импортом** (`from apps.branch.models import BranchModel`), а не строкой `'branch.BranchModel'`.
+- PK — `UUIDField`; `slug` генерируется в `save()` транслитерацией имени (`pytils` + `slugify`) с суффиксом `-N` при коллизии. Тот же паттерн повторён в `Vacancy`/`VacancyCategory`/`Promotion`.
+- В API филиал всегда выбирается по **slug**: `get_object_or_404(BranchModel, slug=payload.branch_slug)`, никогда по id.
+
+### Пути endpoint'ов
+`APPEND_SLASH = False`, поэтому путь в декораторе — это ровно путь запроса. В коде две
+сложившиеся группы, не унифицированы:
+- `doctors`, `branch` — со слэшем: `@router.get('/')`, `@router.get('/{doctor_id}/')`.
+- `blog`, `promotions`, `vacancies`, lead-формы — без: `@router.get("")`, `@router.get("/{slug}")`.
+
+При правке endpoint сохраняй форму пути его приложения — тесты и фронтенд бьют по точным URL.
+
+### Изображения: автоматические webp/avif
+Модель с картинками наследует `ImageVariantsMixin` (`apps/common/mixins.py`) и объявляет
+`IMAGE_VARIANT_FIELDS = ['photo', 'photo_mobile']`. После `save()` ставится Celery-задача
+`generate_image_variants_task`, которая кладёт `.webp`/`.avif` рядом с оригиналом
+(`apps/common/images.py`, нужен `pillow_avif`). Постановка в очередь обёрнута в try/except:
+недоступный брокер не ломает `save()`.
+
+В схемах картинки отдаются **только** через `build_picture_format(obj.photo, obj.photo_mobile)`
+→ `PictureFormatSchema` = `{original, webp, avif}`, каждый `{src, mobile}`. Сырые `.url` не
+возвращаем. Вариант попадает в ответ лишь если файл реально существует в storage.
+
+Под тестами Celery — eager (`CELERY_TASK_ALWAYS_EAGER = "test" in sys.argv` в `base.py`),
+т.е. варианты генерируются синхронно.
+
+### Lead-формы (appointments, dms, consultation, promotions/request)
+Один и тот же контракт, эталон — `apps/appointments/api.py`:
+1. нет `payload.is_privacy_agreement` → `400` + `ErrorResponseMessageSchema`;
+2. филиал по slug (в `promotions/request` — акция по slug);
+3. создать запись, сохранив `is_ad_agreement` / `is_privacy_agreement`, `page_url` через `request.build_absolute_uri()`;
+4. `response={201: SuccessResponseMessageSchema, 400: ErrorResponseMessageSchema}`.
+
+Новый lead-endpoint повторяет эту форму. Исключение — `vacancies`: там валидация вынесена
+в `apps/vacancies/validators.py` и ответ 400 — словарь `{field: [messages]}` (`ApplicationErrorSchema`),
+загрузка резюме идёт `multipart/form-data` (`Form(...)` + `File(None)`) с проверкой
+расширения, MIME, `settings.MAX_RESUME_SIZE` и magic-байтов.
+
+### Throttling
+`@throttle_lead_form` из `apps/common/throttling.py` — 10 отправок с одного IP в минуту;
+навешивается на **каждый** публичный POST формы (appointments, dms, consultation,
+promotions/request, отклики на вакансии). Роут обязан объявить
+`429: ErrorResponseMessageSchema` — это проверяет `tests/test_api_smoke.py`.
+Для нестандартных лимитов есть базовый `@throttle(limit, window_seconds, message=...)`.
+
+IP берётся через `get_client_ip()`: за nginx `REMOTE_ADDR` — это адрес контейнера
+прокси, один на всех, поэтому читаются `X-Real-IP` и **последний** элемент
+`X-Forwarded-For` (начало цепочки клиент может подделать). Включено настройкой
+`TRUST_PROXY_HEADERS` (по умолчанию = `not DEBUG`). Под тестами throttle не действует.
+
+Порядок декораторов: `@router.post(...)` сверху, `@throttle_lead_form` под ним —
+ninja достаёт исходную сигнатуру через `functools.wraps`.
+
+### Защищённые файлы
+Резюме откликов (`vacancies/resumes/`) — персональные данные: каталог объявлен
+`internal` в nginx, прямые ссылки на `/media/...` дают 404. Выдача идёт через
+`apps/vacancies/views.download_resume` (`@staff_member_required`) —
+X-Accel-Redirect в проде и `FileResponse` в dev (`USE_X_ACCEL_REDIRECT`).
+В админке вместо файлового поля — колонка-ссылка `resume_link`.
+Новые приватные файлы подключать так же, а не через публичный `/media/`.
+
+### Прочее
+- `BlogPost.save()` прогоняет текст через `apps/common/typography.py` (`typograph_text` / `typograph_html`, вырезает `style`-атрибуты) — при переопределении `save()` не потерять.
+- Список блога — своя пагинация: query-параметры `page`, `perPage`, `allPages`, ответ `PaginatedBlogPostSchema` (`items` + `pagination`), а не плоский список.
+- Список вакансий: без `?category=` подставляется первая активная категория; в `categories` попадают только категории с опубликованными вакансиями; `total` — по всем категориям.
+- Акции фильтруются по `timezone.localdate()`, `ends_at__isnull=True` = бессрочная.
+- Прод-инфраструктура: `docker/prod/nginx/nginx.conf` на сервере под `skip-worktree` — правки конфига нужно переносить руками (`docs/deploy.md` §7.2, §14). Имя compose-проекта закреплено как `prod` — менять только с миграцией томов.
+- `list`-endpoint'ы фильтруют публикуемость (`is_active` / `is_published` / `status=PUBLISHED`), detail на скрытой записи → 404.
+- `select_related` для FK, `prefetch_related` для M2M/inline, `.distinct()` при JOIN через M2M.
+- `BranchFilterMixin` / `apps/users/mixins.py` больше не существуют: admin по филиалам не ограничивается, `User.role` пока нигде не влияет на queryset.
 
 ## Тесты
-```bash
-# Все тесты (--keepdb — БД test_alexa уже существует в Docker)
-docker-compose exec web python manage.py test -v 2 --keepdb
 
-# Тесты одного приложения
-docker-compose exec web python manage.py test apps.doctors -v 2 --keepdb
+`tests/test_api_smoke.py` проверяет доступность `/api/v1/docs` и наличие путей в
+`openapi.json` — при переименовании роутов его нужно обновлять. Содержательные тесты есть
+в `apps/common`, `apps/vacancies`, `apps/blog`, `apps/users`; `apps/dms/tests.py` и
+`apps/consultation/tests.py` — пустые заготовки. Хелперы для картинок —
+`apps/common/test_utils.py` (`make_test_image`, `FieldFileStub`).
 
-# Или через Makefile:
-make test
-make test-app APP=doctors
-```
+## Git и деплой
 
-## Стек
-| Пакет | Версия | Назначение |
-|---|---|---|
-| Django | 5.1.4 | Основной фреймворк |
-| django-ninja | 1.3 | REST API (FastAPI-style схемы) |
-| django-jazzmin | 3.0 | Кастомный UI для /admin/ |
-| django-ckeditor-5 | 0.2 | Rich-text поля |
-| Pillow | 10.4 | ImageField / обработка фото |
-| postgresql | 16 | БД |
-| python-decouple | 3.8 | Конфигурация через .env |
-
-## Структура проекта
-```
-apps/
-  users/        # Кастомная User модель — Role, FK на Branch
-  branches/     # Филиалы клиники — ГОТОВО
-  doctors/      # Врачи, специализации, DoctorBranch — ГОТОВО
-  services/     # Услуги, категории, BranchService — models only
-  blog/         # BlogPost, BlogCategory — models only
-  promotions/   # Акции с M2M на Branch, фильтрация по датам — models only
-  appointments/ # Запись на приём + Telegram signal stub — models only
-config/
-  settings/base.py  # Все настройки, INSTALLED_APPS
-  api.py            # Центральный роутер — сюда добавлять новые роутеры
-  urls.py           # URL routing
-docs/superpowers/plans/2026-06-23-alexa-backend.md  # Полный план (9 задач)
-```
-
-Все приложения уже зарегистрированы в `INSTALLED_APPS` (base.py) — повторно не добавлять.
-
----
-
-## Паттерн Django-приложения (повторять для services, blog, promotions, appointments)
-
-### models.py
-- Russian verbose_name на ВСЕХ полях и в Meta
-- Cross-app FK через строку: `'branches.Branch'` (не import, чтобы избежать circular)
-- Rich text: `CKEditor5Field(blank=True, config_name='default')`
-- Images: `ImageField(upload_to='appname/')`
-- Всегда определять `__str__` и `ordering` в Meta
-
-```python
-from django.db import models
-from django_ckeditor_5.fields import CKEditor5Field
-
-class MyModel(models.Model):
-    name = models.CharField(max_length=255, verbose_name='Название')
-    is_active = models.BooleanField(default=True, verbose_name='Активен')
-
-    class Meta:
-        verbose_name = 'Модель'
-        verbose_name_plural = 'Модели'
-        ordering = ['name']
-
-    def __str__(self):
-        return self.name
-```
-
-### admin.py
-- `BranchFilterMixin` из `apps.users.mixins` — для всех моделей с привязкой к филиалу
-- `branch_filter_field` — ORM-путь от модели до Branch:
-  - Прямой FK: `'branch'` (значение по умолчанию, можно не переопределять)
-  - Через таблицу-посредник: `'doctorbranch__branch'`
-  - Нет привязки к филиалу (глобальные справочники): BranchFilterMixin не нужен
-
-```python
-from django.contrib import admin
-from apps.users.mixins import BranchFilterMixin
-from .models import MyModel
-
-@admin.register(MyModel)
-class MyModelAdmin(BranchFilterMixin, admin.ModelAdmin):
-    branch_filter_field = 'branch'      # переопределить если не прямой FK
-    list_display  = ['name', 'is_active']
-    list_editable = ['is_active']
-    search_fields = ['name']
-    list_filter   = ['is_active']
-```
-
-### schemas.py
-
-```python
-from ninja import Schema
-from typing import Optional
-
-class MyModelSchema(Schema):
-    id: int
-    name: str
-    is_active: bool
-
-    # Для ImageField — resolver возвращает URL строкой
-    photo: Optional[str] = None
-
-    @staticmethod
-    def resolve_photo(obj):
-        return obj.photo.url if obj.photo else None
-```
-
-### api.py
-
-```python
-from ninja import Router
-from django.shortcuts import get_object_or_404
-from typing import Optional
-from .models import MyModel
-from .schemas import MyModelSchema
-
-router = Router(tags=['MyApp'])
-
-@router.get('/', response=list[MyModelSchema])
-def list_items(request):
-    return MyModel.objects.filter(is_active=True)
-
-@router.get('/{item_id}/', response=MyModelSchema)
-def get_item(request, item_id: int):
-    return get_object_or_404(MyModel, id=item_id, is_active=True)
-```
-
-Затем зарегистрировать в `config/api.py`:
-```python
-from apps.myapp.api import router as myapp_router
-api.add_router("/myapp/", myapp_router)
-```
-
-### tests.py
-
-```python
-from django.test import TestCase
-from apps.branches.models import Branch
-from .models import MyModel
-
-class MyModelTest(TestCase):
-    def setUp(self):
-        self.obj = MyModel.objects.create(name='Test')
-
-    def test_str_representation(self):
-        self.assertEqual(str(self.obj), 'Test')
-
-
-class MyAPITest(TestCase):
-    def setUp(self):
-        self.obj     = MyModel.objects.create(name='Active',   is_active=True)
-        self.inactive = MyModel.objects.create(name='Inactive', is_active=False)
-
-    def test_list_returns_only_active(self):
-        response = self.client.get('/api/v1/myapp/')
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.json()), 1)
-
-    def test_detail_ok(self):
-        response = self.client.get(f'/api/v1/myapp/{self.obj.id}/')
-        self.assertEqual(response.status_code, 200)
-
-    def test_inactive_returns_404(self):
-        response = self.client.get(f'/api/v1/myapp/{self.inactive.id}/')
-        self.assertEqual(response.status_code, 404)
-```
-
-### Миграции
-```bash
-# Использовать короткое имя (services), не apps.services
-docker-compose exec web python manage.py makemigrations services
-docker-compose exec web python manage.py migrate
-# Или: make migrate APP=services
-```
-
----
-
-## Ключевые утилиты
-
-### BranchFilterMixin (apps/users/mixins.py)
-Ограничивает queryset в admin по филиалу пользователя:
-- `superadmin` → видит всё
-- `branch_manager` → видит только записи своего филиала
-- Если связь не прямой FK, указать путь: `branch_filter_field = 'doctorbranch__branch'`
-
-### User модель (apps/users/models.py)
-```python
-User.Role.SUPERADMIN      # 'superadmin'
-User.Role.BRANCH_MANAGER  # 'branch_manager'
-user.branch               # FK → Branch (None для superadmin)
-user.role                 # строка роли
-```
-
----
-
-## Соглашения API
-- Base URL: `/api/v1/`
-- Публичные endpoints без аутентификации (информация о клинике публична)
-- Все list-endpoints фильтруют `is_active=True`
-- Branch-фильтрация: опциональный `?branch_id=` там, где уместно
-- Inactive записи → 404 на detail endpoint
-- При JOIN через M2M или FK использовать `.distinct()` против дублей
-- `prefetch_related()` для M2M, `select_related()` для FK — избегать N+1
-
-## INSTALLED_APPS (не менять порядок)
-`jazzmin` → `django.contrib.*` → `ninja, corsheaders, django_ckeditor_5` → `apps.*`
-jazzmin обязан идти перед `django.contrib.admin`.
-
-## Переменные окружения (.env)
-```
-SECRET_KEY, DEBUG, ALLOWED_HOSTS
-DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT
-CORS_ALLOWED_ORIGINS   # default: http://localhost:3000
-CELERY_BROKER_URL      # default: redis://localhost:6379/0
-```
+Ветки `feat/*` → PR → merge в `main`. Push в `main` запускает
+`.github/workflows/deploy.yml`: job `test` (postgres + redis services, `check --deploy`
+и `manage.py test` — красные тесты блокируют деплой) → сборка `docker/prod/Dockerfile`
+→ push в GHCR → SSH на VPS (`/opt/alexa-backend`) → `git pull`, `compose pull/up -d`,
+`migrate`, `collectstatic`, `nginx -s reload`.
+Прод-стек: postgres 16 · redis · gunicorn · celery worker · nginx + certbot.
+Подробности — `docs/deploy.md`, `docs/docker.md`.
