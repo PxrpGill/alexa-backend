@@ -4,6 +4,7 @@ import tempfile
 from datetime import timedelta
 
 from django.test import Client, TestCase, override_settings
+from django.urls import resolve
 from django.utils import timezone
 
 from apps.promotions.models import Promotion
@@ -168,3 +169,19 @@ class PromotionConditionImageTest(PromotionsBaseTestCase):
         )
         response = self.client.get(f"/api/v1/promotions/{self.promotion.slug}")
         self.assertIsNone(response.json()["conditions"]["cards"][0]["icon"])
+
+
+class PromotionRouteOrderTest(TestCase):
+    """Шаблон "/{slug}" совпадает и с "/request", а Django резолвит пути
+    в порядке регистрации: если detail-роут объявить выше lead-формы,
+    POST /promotions/request вернёт 405 и заявки на акцию перестанут доходить."""
+
+    def test_request_path_is_not_captured_by_slug_route(self):
+        match = resolve("/api/v1/promotions/request")
+
+        self.assertEqual(match.kwargs, {})
+
+    def test_slug_path_still_resolves_to_detail(self):
+        match = resolve("/api/v1/promotions/letnyaya-akciya")
+
+        self.assertEqual(match.kwargs, {"slug": "letnyaya-akciya"})
