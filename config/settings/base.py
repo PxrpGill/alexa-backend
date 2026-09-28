@@ -167,6 +167,11 @@ MAX_NOTIFICATIONS_ENABLED = config(
 # Базовый адрес сайта — для ссылок на записи в админке в уведомлениях.
 SITE_URL = config("SITE_URL", default="http://localhost:8000")
 
+# Домен публичного сайта (Next.js живёт отдельно от бэкенда). Используется
+# в apps/common/leads.py, чтобы «Откуда сделана заявка» вело на сайт, а не на API.
+# Пусто — ссылка строится от домена входящего запроса, как раньше.
+FRONTEND_URL = config("FRONTEND_URL", default="")
+
 CKEDITOR_5_CONFIGS = {
     "default": {
         "toolbar": {
