@@ -408,13 +408,47 @@ docker-compose -f docker/prod/docker-compose.yml up -d web worker
 один раз при первом деплое этой версии.
 
 **1. Перенести новый nginx.conf на сервер** (он под `skip-worktree`, см. §7.2).
-Проверить, что в нём есть `resolver 127.0.0.11`, `include .../proxy_to_web.inc`
-и `location /media/vacancies/resumes/ { internal; }`.
+
+> ⚠️ Порядок критичен. `git checkout` возвращает файл из репозитория, то есть
+> ШАБЛОН с `YOUR_DOMAIN`. Если поднять nginx до подстановки домена, он не найдёт
+> сертификат `/etc/letsencrypt/live/YOUR_DOMAIN/fullchain.pem`, уйдёт в
+> restart-loop, и сайт ляжет. Домен подставляем ДО `up -d`, конфиг проверяем
+> отдельным контейнером — в перезапускающийся `exec nginx -t` не зайти.
 
 ```bash
-docker-compose -f docker/prod/docker-compose.yml up -d nginx   # смена монтирования на каталог
-docker-compose -f docker/prod/docker-compose.yml exec nginx nginx -t
+cd /opt/alexa-backend
+
+# 1.1 Точное имя каталога сертификата — его и подставляем в пути
+docker run --rm -v prod_certbot_certs:/etc/letsencrypt alpine ls -1 /etc/letsencrypt/live/
+
+# 1.2 Забрать новый конфиг из репозитория и сразу подставить домен
+cp docker/prod/nginx/nginx.conf ~/nginx.conf.bak
+git update-index --no-skip-worktree docker/prod/nginx/nginx.conf
+git checkout -- docker/prod/nginx/nginx.conf && git pull origin main
+sed -i 's/YOUR_DOMAIN/yourdomain.com/g' docker/prod/nginx/nginx.conf
+grep -c YOUR_DOMAIN docker/prod/nginx/nginx.conf      # обязательно 0
+git update-index --skip-worktree docker/prod/nginx/nginx.conf
+
+# 1.3 Проверить конфиг, НЕ трогая работающий nginx
+docker run --rm \
+    -v /opt/alexa-backend/docker/prod/nginx:/etc/nginx/conf.d:ro \
+    -v prod_certbot_certs:/etc/letsencrypt:ro \
+    nginx:alpine nginx -t
+
+# 1.4 Только после "test is successful" (смена монтирования на каталог)
+docker-compose -f docker/prod/docker-compose.yml up -d nginx
 ```
+
+Проверить, что в конфиге есть `resolver 127.0.0.11`, `include .../proxy_to_web.inc`
+и `location /media/vacancies/resumes/ { internal; }`.
+
+Если имя каталога в 1.1 отличается от чистого домена (`www.yourdomain.com`,
+`yourdomain.com-0001`), подставляйте значения раздельно: пути к сертификатам —
+имя каталога, `server_name` — сам домен. Нет `chain.pem` — убрать строку
+`ssl_trusted_certificate`, она не обязательна.
+
+Откат при любой ошибке: `cp ~/nginx.conf.bak docker/prod/nginx/nginx.conf`
+и снова `up -d nginx`.
 
 **2. Отдать тома непривилегированному пользователю.** Образ теперь работает от
 `uid 10001`, а существующие тома принадлежат root — без chown упадут
