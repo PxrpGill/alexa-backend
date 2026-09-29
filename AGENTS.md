@@ -34,6 +34,7 @@ from apps.branch.models import BranchModel  # model class is BranchModel, not Br
 ```
 
 - `BranchModel`: **UUID primary key** (`id` is a uuid, not int), `unique=True` name, auto-generated transliterated `slug` (via `pytils`) computed in `save()`.
+- Auto-generated slugs (`BranchModel`, `Vacancy`, `VacancyCategory`, `Promotion`) use `max_length=255` and truncate the base to `SLUG_BASE_MAX_LENGTH` (`apps/common/slugs.py`) — long titles overflowed the default 50 chars.
 - Other apps' forms select a branch by **`branch_slug` string** (`get_object_or_404(BranchModel, slug=...)`), never by id.
 
 ## Image handling (auto webp/avif variants)
