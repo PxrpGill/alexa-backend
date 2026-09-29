@@ -49,11 +49,11 @@ docker-compose -f docker/dev/docker-compose.yml exec web \
 
 | App | Содержимое | API |
 |---|---|---|
-| `common` | инфраструктура: `ImageVariantsMixin`, `images.py`, `tasks.py`, `throttling.py`, `typography.py`, общие схемы, `test_utils.py` | — |
+| `common` | инфраструктура: `ImageVariantsMixin`, `images.py`, `tasks.py`, `throttling.py`, `typography.py`, `renderers.py`, общие схемы, `test_utils.py` | — |
 | `users` | `User(AbstractUser)` + `Role` (только роли, **без** FK на филиал) | — |
 | `branch` | `BranchModel` — филиалы | `GET /branches/` |
 | `doctors` | `Doctor`, `Specialization` | `GET /doctors/`, `/doctors/{id}/` |
-| `blog` | `BlogCategory`, `BlogPost` (+ типографика в `save()`) | `GET /blog`, `/blog/{slug}` |
+| `blog` | `BlogCategory`, `BlogPost` | `GET /blog`, `/blog/{slug}` |
 | `promotions` | `Promotion`, `PromotionRequests` | `GET /promotions`, `POST /promotions/request` |
 | `appointments` | `Appointment` + signal уведомления в MAX (`signals.py`, подключён в `apps.py:ready()`) | `POST /appointments` |
 | `dms` | `DMS` — заявки ДМС | `POST /dms` |
@@ -164,8 +164,29 @@ X-Accel-Redirect в проде и `FileResponse` в dev (`USE_X_ACCEL_REDIRECT`)
 В админке вместо файлового поля — колонка-ссылка `resume_link`.
 Новые приватные файлы подключать так же, а не через публичный `/media/`.
 
+### Типографика
+Вся русская типографика применяется **на отдаче**, а не в `save()`: в БД и админке
+лежит исходный текст редактора, фронтенд всегда получает обработанный. Точка входа —
+`TypographJSONRenderer` (`apps/common/renderers.py`), подключённый как
+`renderer=` у `NinjaAPI` в `config/api.py`. Он рекурсивно обходит готовый ответ
+(`typograph_data` в `apps/common/typography.py`): значение с HTML-тегами уходит в
+`typograph_html()` (типографика текстовых узлов + вырезание `style`), обычная строка —
+в `typograph_text(..., html_entities=True)`.
+
+Формат — **HTML-entity** (`&nbsp;`, `&mdash;`, `&hellip;`) во всех полях, не только в
+HTML-контенте: фронтенд вставляет такие строки как HTML. Ссылки и пути (`http…`, `/…`,
+`data:`) не трогаются даже без denylist.
+
+Служебные ключи перечислены в `TYPOGRAPH_SKIP_KEYS` (`apps/common/typography.py`) —
+`slug`, `branch`, ссылки, `src`/`mobile`/`icon` и ключи-картинки (отсекают поддерево
+`PictureFormatSchema` целиком), телефоны, email, `resume`, `status`. **Новое служебное
+поле в ответе → добавить ключ туда**, иначе оно будет типографировано. Новые
+контентные поля и новые роуты покрываются автоматически, отдельных `resolve_*` не нужно.
+
+`/api/v1/openapi.json` идёт мимо renderer'а (`ninja.responses.Response`) — схема и
+`/api/v1/docs` не затрагиваются.
+
 ### Прочее
-- `BlogPost.save()` прогоняет текст через `apps/common/typography.py` (`typograph_text` / `typograph_html`, вырезает `style`-атрибуты) — при переопределении `save()` не потерять.
 - Список блога — своя пагинация: query-параметры `page`, `perPage`, `allPages`, ответ `PaginatedBlogPostSchema` (`items` + `pagination`), а не плоский список.
 - Список вакансий: без `?category=` подставляется первая активная категория; в `categories` попадают только категории с опубликованными вакансиями; `total` — по всем категориям.
 - Акции фильтруются по `timezone.localdate()`, `ends_at__isnull=True` = бессрочная.
@@ -178,8 +199,8 @@ X-Accel-Redirect в проде и `FileResponse` в dev (`USE_X_ACCEL_REDIRECT`)
 
 `tests/test_api_smoke.py` проверяет доступность `/api/v1/docs` и наличие путей в
 `openapi.json` — при переименовании роутов его нужно обновлять. Содержательные тесты есть
-в `apps/common`, `apps/vacancies`, `apps/blog`, `apps/users`; `apps/dms/tests.py` и
-`apps/consultation/tests.py` — пустые заготовки. Хелперы для картинок —
+в `apps/common`, `apps/vacancies`, `apps/blog`, `apps/promotions`, `apps/users`;
+в `apps/branch` и `apps/doctors` — только типографика ответов. Хелперы для картинок —
 `apps/common/test_utils.py` (`make_test_image`, `FieldFileStub`).
 
 ## Git и деплой

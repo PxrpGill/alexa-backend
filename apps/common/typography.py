@@ -189,3 +189,53 @@ def typograph_html(html):
         return ''.join(parser.parts)
     except Exception:
         return html
+
+
+# Служебные ключи ответов API: значения под ними не типографируются.
+# Это slug'и, ссылки, пути к файлам, контакты и технические поля-перечисления.
+# Ключи-картинки (photo, banner, ...) отсекают поддерево PictureFormatSchema целиком.
+TYPOGRAPH_SKIP_KEYS = frozenset({
+    'slug', 'branch', 'url', 'page_url', 'src', 'mobile',
+    'icon', 'image', 'photo', 'banner', 'poster', 'previewPoster',
+    'original', 'webp', 'avif',
+    'phone', 'patient_phone', 'email', 'resume', 'file',
+    'status',
+})
+
+_HTML_TAG_RE = re.compile(r'<[a-zA-Z/!]')
+_URL_PREFIXES = ('http://', 'https://', 'mailto:', 'data:', '/')
+
+
+def typograph_value(value):
+    """Типографирует одну строку из ответа API.
+
+    HTML-значение (есть теги) уходит в typograph_html(), обычный текст —
+    в typograph_text() с HTML-entity: фронтенд вставляет такие поля как HTML.
+    Ссылки и пути возвращаются как есть — даже если ключ не попал в denylist.
+    """
+    if not value:
+        return value
+    if value.startswith(_URL_PREFIXES):
+        return value
+    if _HTML_TAG_RE.search(value):
+        return typograph_html(value)
+    return typograph_text(value, html_entities=True)
+
+
+def typograph_data(data):
+    """Рекурсивно типографирует все строки в структуре ответа API.
+
+    Ключи из TYPOGRAPH_SKIP_KEYS пропускаются вместе со своим поддеревом.
+    Нестроковые значения (числа, bool, None, даты) возвращаются нетронутыми:
+    в renderer данные приходят до json.dumps, даты там ещё объекты.
+    """
+    if isinstance(data, str):
+        return typograph_value(data)
+    if isinstance(data, dict):
+        return {
+            key: value if key in TYPOGRAPH_SKIP_KEYS else typograph_data(value)
+            for key, value in data.items()
+        }
+    if isinstance(data, (list, tuple)):
+        return [typograph_data(item) for item in data]
+    return data

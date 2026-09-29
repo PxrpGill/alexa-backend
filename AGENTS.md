@@ -91,7 +91,13 @@ never sent to the chat (protected personal data) — only an "attached / none" m
 
 ## Gotchas
 
-- `BlogPost.save()` auto-applies typography (`apps/common/typography.py`: typograph_text / typograph_html strips `style` attrs). Preserve that behavior when overriding `save()`.
+- Russian typography is applied **on response**, not in `save()`: `TypographJSONRenderer`
+  (`apps/common/renderers.py`) is wired as `renderer=` on `NinjaAPI` in `config/api.py` and walks
+  the whole response via `typograph_data()` (`apps/common/typography.py`). HTML values go through
+  `typograph_html()` (also strips `style`), plain strings through `typograph_text(html_entities=True)`,
+  so every field ships HTML entities (`&nbsp;`, `&mdash;`). Service keys live in `TYPOGRAPH_SKIP_KEYS`
+  (slug, links, image subtrees, phones, email, `status`) — add new service keys there. `openapi.json`
+  bypasses the renderer. Models store the editor's original text.
 - Blog list endpoint uses custom pagination: query params `page`, `perPage`, `allPages`; response is `PaginatedBlogPostSchema` (`items` + `pagination`), not a plain list.
 - Promotions date filtering uses `timezone.localdate()`; `ends_at__isnull=True` means "ongoing".
 - Git workflow: feature branches `feat/*` → PR → merge to `main` triggers CI deploy (GHCR image + SSH to VPS). Commit messages in Russian.

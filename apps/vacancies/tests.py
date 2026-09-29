@@ -194,7 +194,7 @@ class VacancyDetailAPITest(VacanciesBaseTestCase):
         data = response.json()
         self.assertEqual(data["slug"], self.vacancy.slug)
         self.assertEqual(data["hero"]["vacancy_name"], "Ассистент стоматолога")
-        self.assertEqual(data["hero"]["badges"], ["Опыт от 1 года"])
+        self.assertEqual(data["hero"]["badges"], ["Опыт от&nbsp;1 года"])
         self.assertEqual(
             data["requirements"]["required"]["title"],
             "Наши обязательные требования",
@@ -669,3 +669,56 @@ class ApplicationMaxNotificationTest(VacanciesBaseTestCase):
 
         self.assertEqual(response.status_code, 400)
         delay.assert_not_called()
+
+
+class VacancyTypographyTest(VacanciesBaseTestCase):
+    """Тексты вакансии типографируются при отдаче, в БД остаётся исходник."""
+
+    def setUp(self):
+        super().setUp()
+        self.vacancy.name = 'Ассистент "стоматолога" - срочно'
+        self.vacancy.description = "Помогайте врачам в Москве - и развивайтесь"
+        self.vacancy.save()
+        VacancyBadge.objects.create(vacancy=self.vacancy, text="Опыт от 1 года")
+        VacancyRequirement.objects.create(
+            vacancy=self.vacancy,
+            type=VacancyRequirement.Type.REQUIRED,
+            title="Опыт - обязателен",
+            description="Стаж от 1 года в стоматологии",
+        )
+        VacancyResponsibility.objects.create(
+            vacancy=self.vacancy, title="Работа", description="Помощь врачу на приёме"
+        )
+        VacancyBenefit.objects.create(
+            vacancy=self.vacancy, title="Рост", description="Обучение за счёт клиники"
+        )
+
+    def test_api_typographs_detail_texts(self):
+        data = self.client.get(f"/api/v1/vacancies/{self.vacancy.slug}").json()
+        self.assertEqual(
+            data["hero"]["vacancy_name"], "Ассистент «стоматолога»&nbsp;&mdash; срочно"
+        )
+        self.assertEqual(
+            data["hero"]["description"], "Помогайте врачам в&nbsp;Москве&nbsp;&mdash; и&nbsp;развивайтесь"
+        )
+        self.assertEqual(data["hero"]["badges"], ["Опыт от&nbsp;1 года"])
+        card = data["requirements"]["required"]["cards"][0]
+        self.assertEqual(card["title"], "Опыт&nbsp;&mdash; обязателен")
+        self.assertEqual(card["description"], "Стаж от&nbsp;1 года в&nbsp;стоматологии")
+
+    def test_api_typographs_list_and_categories(self):
+        data = self.client.get("/api/v1/vacancies").json()
+        self.assertEqual(
+            data["results"][0]["vacancy_name"], "Ассистент «стоматолога»&nbsp;&mdash; срочно"
+        )
+        self.assertEqual(data["categories"][0]["name"], "Взрослая стоматология")
+
+    def test_api_keeps_slugs_untouched(self):
+        data = self.client.get("/api/v1/vacancies").json()
+        self.assertEqual(data["results"][0]["slug"], self.vacancy.slug)
+        self.assertEqual(data["results"][0]["branch"], self.branch.slug)
+        self.assertNotIn("&mdash;", data["results"][0]["branch"])
+
+    def test_db_keeps_original_text(self):
+        self.vacancy.refresh_from_db()
+        self.assertEqual(self.vacancy.name, 'Ассистент "стоматолога" - срочно')
