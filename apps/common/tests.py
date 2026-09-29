@@ -10,6 +10,7 @@ from django.core.files.base import ContentFile
 from django.core.files.storage import FileSystemStorage
 from django.core.cache import cache
 from django.test import RequestFactory, TestCase, override_settings
+from django.utils import timezone
 from PIL import Image
 
 from apps.common.images import generate_image_variants
@@ -25,7 +26,7 @@ from apps.common.schemas import build_picture_format
 from apps.common.tasks import generate_image_variants_task, send_max_notification_task
 from apps.common.test_utils import FieldFileStub, make_test_image
 from apps.common.throttling import get_client_ip, throttle
-from apps.common.typography import typograph_html, typograph_text
+from apps.common.typography import typograph_data, typograph_html, typograph_text
 from apps.appointments.models import Appointment
 from apps.branch.models import BranchModel
 from apps.doctors.models import Doctor
@@ -594,3 +595,70 @@ class BuildPageUrlTest(TestCase):
     def test_empty_page_url_becomes_root(self):
         self.assertEqual(build_page_url(self.request, ""), "/")
         self.assertEqual(build_page_url(self.request, None), "/")
+
+
+class TypographDataTest(TestCase):
+    """Обход структуры ответа API: что типографируется, а что нет."""
+
+    def test_typographs_plain_string_with_entities(self):
+        self.assertEqual(
+            typograph_data({'title': 'Москва - столица'}),
+            {'title': 'Москва&nbsp;&mdash; столица'},
+        )
+
+    def test_typographs_html_value_as_html(self):
+        result = typograph_data({'content': '<p style="color:red">Москва - столица</p>'})
+        self.assertEqual(result, {'content': '<p>Москва&nbsp;&mdash; столица</p>'})
+
+    def test_skips_service_keys(self):
+        data = {
+            'slug': 'lechenie - zubov',
+            'branch': 'lenina - 1',
+            'page_url': '/blog/post - one',
+            'phone': '+7 900 000 - 00 - 00',
+            'patient_phone': '+7 900 000 - 00 - 00',
+            'email': 'a - b@example.com',
+            'icon': '/media/icons/a - b.svg',
+            'resume': '/media/resumes/a - b.pdf',
+            'status': 'published',
+        }
+        self.assertEqual(typograph_data(dict(data)), data)
+
+    def test_skips_picture_format_subtree(self):
+        data = {'photo': {'original': {'src': '/media/a - b.jpg', 'mobile': None}}}
+        self.assertEqual(typograph_data(data), data)
+
+    def test_walks_nested_dicts_and_lists(self):
+        result = typograph_data({
+            'items': [{'title': 'Москва - столица'}, {'title': 'Привет в Москве'}],
+            'pagination': {'page': 1},
+        })
+        self.assertEqual(result['items'][0]['title'], 'Москва&nbsp;&mdash; столица')
+        self.assertEqual(result['items'][1]['title'], 'Привет в&nbsp;Москве')
+        self.assertEqual(result['pagination'], {'page': 1})
+
+    def test_typographs_bare_strings_and_string_lists(self):
+        self.assertEqual(typograph_data('Москва - столица'), 'Москва&nbsp;&mdash; столица')
+        self.assertEqual(typograph_data(['Москва - столица']), ['Москва&nbsp;&mdash; столица'])
+
+    def test_leaves_non_strings_untouched(self):
+        now = timezone.now()
+        data = {'id': 1, 'is_active': True, 'description': None, 'publishDate': now}
+        self.assertEqual(typograph_data(data), data)
+
+    def test_leaves_urls_and_paths_untouched(self):
+        data = {'alt': '/media/blog/a - b.jpg', 'title': 'https://example.com/a - b'}
+        self.assertEqual(typograph_data(data), data)
+
+    def test_is_idempotent(self):
+        data = {
+            'title': 'Зачем устанавливают "коронку" - и зачем',
+            'content': '<p>Привет в Москве - скидка 25 %</p>',
+            'slug': 'koronka',
+        }
+        once = typograph_data(data)
+        self.assertEqual(typograph_data(once), once)
+
+    def test_returns_empty_and_none_unchanged(self):
+        self.assertEqual(typograph_data({'title': ''}), {'title': ''})
+        self.assertIsNone(typograph_data(None))

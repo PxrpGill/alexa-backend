@@ -148,12 +148,13 @@ class BlogPostPictureFormatAPITest(TestCase):
         self.assertIsNone(poster['webp']['mobile'])
 
 
-class BlogPostTypographySaveTest(TestCase):
-    def setUp(self):
-        self.category = BlogCategory.objects.create(name='Новости', slug='news')
+class BlogTypographyTest(TestCase):
+    """В БД лежит исходник редактора, типографика применяется при отдаче в API."""
 
-    def test_save_typographs_title_description_and_content(self):
-        post = BlogPost.objects.create(
+    def setUp(self):
+        self.client = Client()
+        self.category = BlogCategory.objects.create(name='Новости', slug='news')
+        self.post = BlogPost.objects.create(
             title='Зачем устанавливают "коронку"',
             slug='koronka',
             category=self.category,
@@ -162,19 +163,30 @@ class BlogPostTypographySaveTest(TestCase):
             status=BlogPost.Status.PUBLISHED,
             published_at=timezone.now(),
         )
-        post.refresh_from_db()
-        self.assertEqual(post.title, 'Зачем устанавливают «коронку»')
-        self.assertEqual(post.description, 'Москва&nbsp;&mdash; столица')
-        self.assertNotIn('style', post.content)
-        self.assertEqual(post.content, '<p>Привет в&nbsp;Москве&nbsp;&mdash; скидка 25&nbsp;%</p>')
 
-    def test_update_keeps_typography(self):
-        post = BlogPost.objects.create(
-            title='Обычный заголовок', slug='obichnyy', category=self.category,
-            description='Описание', content='<p>Текст</p>',
-            status=BlogPost.Status.PUBLISHED,
+    def test_save_keeps_original_text(self):
+        self.post.refresh_from_db()
+        self.assertEqual(self.post.title, 'Зачем устанавливают "коронку"')
+        self.assertEqual(self.post.description, 'Москва - столица')
+        self.assertIn('style', self.post.content)
+
+    def test_api_typographs_title_description_and_content(self):
+        data = self.client.get('/api/v1/blog/koronka').json()
+        self.assertEqual(data['title'], 'Зачем устанавливают «коронку»')
+        self.assertEqual(data['description'], 'Москва&nbsp;&mdash; столица')
+        self.assertNotIn('style', data['content'])
+        self.assertEqual(
+            data['content'],
+            '<p>Привет в&nbsp;Москве&nbsp;&mdash; скидка 25&nbsp;%</p>',
         )
-        post.title = 'Новый "заголовок"'
-        post.save(update_fields=['title'])
-        post.refresh_from_db()
-        self.assertEqual(post.title, 'Новый «заголовок»')
+
+    def test_api_typographs_category_name_but_not_slug(self):
+        BlogCategory.objects.filter(pk=self.category.pk).update(name='Гигиена - и уход')
+        data = self.client.get('/api/v1/blog/koronka').json()
+        self.assertEqual(data['category']['name'], 'Гигиена&nbsp;&mdash; и&nbsp;уход')
+        self.assertEqual(data['category']['slug'], 'news')
+        self.assertEqual(data['slug'], 'koronka')
+
+    def test_api_typographs_list_items(self):
+        data = self.client.get('/api/v1/blog').json()
+        self.assertEqual(data['items'][0]['title'], 'Зачем устанавливают «коронку»')

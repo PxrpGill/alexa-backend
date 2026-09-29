@@ -1,4 +1,5 @@
 from ninja import NinjaAPI
+from apps.common.renderers import TypographJSONRenderer
 from apps.doctors.api import router as doctors_router
 from apps.blog.api import router as blog_router
 from apps.promotions.api import router as promotions_router
@@ -13,6 +14,7 @@ api = NinjaAPI(
     description="Публичный REST API для получения информации о филиалах, врачах, услугах, акциях и блоге клиники Алекса. Запись на приём — POST /appointments/.",
     version="1.0.0",
     docs_url="/docs",
+    renderer=TypographJSONRenderer(),
 )
 
 api.add_router("/doctors", doctors_router)

@@ -68,11 +68,14 @@ class PromotionDetailAPITest(PromotionsBaseTestCase):
         data = response.json()
         self.assertEqual(data["slug"], self.promotion.slug)
         self.assertEqual(data["hero"]["title"], "Имплантация под ключ")
-        self.assertEqual(data["hero"]["description"], "<p>Скидка 20% на имплантацию</p>")
-        self.assertEqual(data["detail"]["title"], "Что входит в акцию")
+        self.assertEqual(
+            data["hero"]["description"],
+            "<p>Скидка 20% на&nbsp;имплантацию</p>",
+        )
+        self.assertEqual(data["detail"]["title"], "Что входит в&nbsp;акцию")
         self.assertEqual(
             data["detail"]["content"],
-            "<p>Консультация, снимок и установка импланта</p>",
+            "<p>Консультация, снимок и&nbsp;установка импланта</p>",
         )
 
     def test_detail_contract_structure(self):
@@ -238,3 +241,47 @@ class PromotionSlugLengthTest(TestCase):
         self.assertLessEqual(
             len(second.slug), Promotion._meta.get_field("slug").max_length
         )
+
+
+class PromotionTypographyTest(TestCase):
+    """Тексты акции типографируются при отдаче, в БД остаётся исходник."""
+
+    def setUp(self):
+        self.client = Client()
+        self.promotion = Promotion.objects.create(
+            title='Акция "Белые зубы" - для всех',
+            description='<p style="color:red">Скидка 20 % на чистку</p>',
+            detail_title="Что входит - список",
+            detail_description="<p>Консультация и снимок</p>",
+            conditions_title="Условия - важно",
+            starts_at=timezone.localdate(),
+        )
+        PromotionCondition.objects.create(
+            promotion=self.promotion,
+            title="Срок - до конца месяца",
+            description="Действует в Москве",
+        )
+
+    def test_api_typographs_plain_and_html_fields(self):
+        data = self.client.get(f"/api/v1/promotions/{self.promotion.slug}").json()
+        self.assertEqual(data["hero"]["title"], "Акция «Белые зубы»&nbsp;&mdash; для всех")
+        self.assertEqual(
+            data["hero"]["description"], "<p>Скидка 20&nbsp;% на&nbsp;чистку</p>"
+        )
+        self.assertNotIn("style", data["hero"]["description"])
+        self.assertEqual(data["detail"]["title"], "Что входит&nbsp;&mdash; список")
+        self.assertEqual(data["conditions"]["title"], "Условия&nbsp;&mdash; важно")
+        card = data["conditions"]["cards"][0]
+        self.assertEqual(card["title"], "Срок&nbsp;&mdash; до&nbsp;конца месяца")
+        self.assertEqual(card["description"], "Действует в&nbsp;Москве")
+
+    def test_api_keeps_service_fields_untouched(self):
+        data = self.client.get(f"/api/v1/promotions/{self.promotion.slug}").json()
+        self.assertEqual(data["slug"], self.promotion.slug)
+        self.assertNotIn("&mdash;", data["slug"])
+        self.assertEqual(data["conditions"]["cards"][0]["icon"], "")
+
+    def test_db_keeps_original_text(self):
+        self.promotion.refresh_from_db()
+        self.assertEqual(self.promotion.title, 'Акция "Белые зубы" - для всех')
+        self.assertIn("style", self.promotion.description)
