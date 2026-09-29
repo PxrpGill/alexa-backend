@@ -4,6 +4,8 @@ from django.utils.text import slugify
 from django.db.models import Q
 from pytils.translit import slugify as t_slugify
 
+from apps.common.slugs import SLUG_BASE_MAX_LENGTH
+
 
 # Create your models here.
 class BranchModel(models.Model):
@@ -15,6 +17,7 @@ class BranchModel(models.Model):
         editable=False,
     )
     slug = models.SlugField(
+        max_length=255,
         unique=True,
         verbose_name="Текстовый идентификатор филиала",
         blank=True,
@@ -28,7 +31,10 @@ class BranchModel(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            base = slugify(t_slugify(self.name)) or f"branch-{uuid.uuid4().hex[:8]}"
+            base = (
+                slugify(t_slugify(self.name))[:SLUG_BASE_MAX_LENGTH]
+                or f"branch-{uuid.uuid4().hex[:8]}"
+            )
             slug = base
             counter = 1
 

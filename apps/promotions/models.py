@@ -3,6 +3,7 @@ from django.core.validators import FileExtensionValidator
 from django.db import models
 from django_ckeditor_5.fields import CKEditor5Field
 from apps.common.mixins import ImageVariantsMixin
+from apps.common.slugs import SLUG_BASE_MAX_LENGTH
 from django.utils.text import slugify
 from django.db.models import Q
 from pytils.translit import slugify as t_slugify
@@ -10,7 +11,10 @@ from pytils.translit import slugify as t_slugify
 
 class Promotion(ImageVariantsMixin, models.Model):
     slug = models.SlugField(
-        unique=True, verbose_name="Текстовый идентификатор акции", blank=True
+        max_length=255,
+        unique=True,
+        verbose_name="Текстовый идентификатор акции",
+        blank=True,
     )
     title = models.CharField(max_length=500, verbose_name="Заголовок")
     description = CKEditor5Field(
@@ -48,7 +52,10 @@ class Promotion(ImageVariantsMixin, models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            base = slugify(t_slugify(self.title)) or f"promotion-{uuid.uuid4().hex[:8]}"
+            base = (
+                slugify(t_slugify(self.title))[:SLUG_BASE_MAX_LENGTH]
+                or f"promotion-{uuid.uuid4().hex[:8]}"
+            )
             slug = base
             counter = 1
 

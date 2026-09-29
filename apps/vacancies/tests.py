@@ -62,6 +62,13 @@ class VacancyCategoryTest(TestCase):
         second = VacancyCategory.objects.create(name="Детская стоматология")
         self.assertEqual(second.slug, "detskaya-stomatologiya-1")
 
+    def test_long_name_produces_slug_within_field_length(self):
+        category = VacancyCategory.objects.create(name="Щётка " * 40)
+
+        self.assertLessEqual(
+            len(category.slug), VacancyCategory._meta.get_field("slug").max_length
+        )
+
 
 class VacancyListAPITest(VacanciesBaseTestCase):
     def test_list_returns_only_published(self):

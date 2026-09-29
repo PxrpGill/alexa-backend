@@ -213,3 +213,28 @@ class PromotionRouteOrderTest(TestCase):
         match = resolve("/api/v1/promotions/letnyaya-akciya")
 
         self.assertEqual(match.kwargs, {"slug": "letnyaya-akciya"})
+
+
+class PromotionSlugLengthTest(TestCase):
+    """Заголовок акции — до 500 символов, а slug генерируется из него
+    транслитерацией, поэтому основа обрезается: иначе INSERT падает
+    с DataError «value too long»."""
+
+    def test_long_title_produces_slug_within_field_length(self):
+        max_length = Promotion._meta.get_field("slug").max_length
+        promotion = Promotion.objects.create(
+            title="Щётка " * 80,
+            starts_at=timezone.localdate(),
+        )
+
+        self.assertLessEqual(len(promotion.slug), max_length)
+
+    def test_long_title_collision_gets_counter_suffix(self):
+        title = "Щётка " * 80
+        first = Promotion.objects.create(title=title, starts_at=timezone.localdate())
+        second = Promotion.objects.create(title=title, starts_at=timezone.localdate())
+
+        self.assertEqual(second.slug, f"{first.slug}-1")
+        self.assertLessEqual(
+            len(second.slug), Promotion._meta.get_field("slug").max_length
+        )

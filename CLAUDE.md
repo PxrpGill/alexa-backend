@@ -71,6 +71,9 @@ docker-compose -f docker/dev/docker-compose.yml exec web \
 ### Филиалы
 - Модель называется `BranchModel`, cross-app FK — **прямым импортом** (`from apps.branch.models import BranchModel`), а не строкой `'branch.BranchModel'`.
 - PK — `UUIDField`; `slug` генерируется в `save()` транслитерацией имени (`pytils` + `slugify`) с суффиксом `-N` при коллизии. Тот же паттерн повторён в `Vacancy`/`VacancyCategory`/`Promotion`.
+- Все такие `SlugField` — `max_length=255`, а основа обрезается до `SLUG_BASE_MAX_LENGTH`
+  (`apps/common/slugs.py`, 200 — запас под суффикс `-N`): заголовки бывают до 500 символов,
+  транслитерация ещё и удлиняет текст, и на дефолтных 50 INSERT падал с `DataError`.
 - В API филиал всегда выбирается по **slug**: `get_object_or_404(BranchModel, slug=payload.branch_slug)`, никогда по id.
 
 ### Пути endpoint'ов

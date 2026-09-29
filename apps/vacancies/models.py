@@ -5,12 +5,16 @@ from pytils.translit import slugify as t_slugify
 
 from apps.branch.models import BranchModel
 from apps.common.mixins import ImageVariantsMixin
+from apps.common.slugs import SLUG_BASE_MAX_LENGTH
 
 
 class VacancyCategory(models.Model):
     name = models.CharField(max_length=255, verbose_name="Название")
     slug = models.SlugField(
-        unique=True, verbose_name="Текстовый идентификатор категории", blank=True
+        max_length=255,
+        unique=True,
+        verbose_name="Текстовый идентификатор категории",
+        blank=True,
     )
     is_active = models.BooleanField(default=True, verbose_name="Активна")
     sort_order = models.PositiveIntegerField(
@@ -27,7 +31,10 @@ class VacancyCategory(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            base = slugify(t_slugify(self.name)) or f"category-{uuid.uuid4().hex[:8]}"
+            base = (
+                slugify(t_slugify(self.name))[:SLUG_BASE_MAX_LENGTH]
+                or f"category-{uuid.uuid4().hex[:8]}"
+            )
             slug = base
             counter = 1
 
@@ -63,7 +70,10 @@ class Vacancy(ImageVariantsMixin, models.Model):
     )
     name = models.CharField(max_length=255, verbose_name="Название вакансии")
     slug = models.SlugField(
-        unique=True, verbose_name="Текстовый идентификатор вакансии", blank=True
+        max_length=255,
+        unique=True,
+        verbose_name="Текстовый идентификатор вакансии",
+        blank=True,
     )
     description = models.TextField(verbose_name="Краткое описание")
     branch = models.ForeignKey(
@@ -101,7 +111,10 @@ class Vacancy(ImageVariantsMixin, models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            base = slugify(t_slugify(self.name)) or f"vacancy-{uuid.uuid4().hex[:8]}"
+            base = (
+                slugify(t_slugify(self.name))[:SLUG_BASE_MAX_LENGTH]
+                or f"vacancy-{uuid.uuid4().hex[:8]}"
+            )
             self.slug = _unique_slug(self, base)
 
         return super().save(*args, **kwargs)
