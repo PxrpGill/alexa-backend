@@ -44,8 +44,16 @@ class PromotionRequestMaxNotificationTest(TestCase):
         self.assertIn("Иван Иванов", text)
         self.assertIn("Чистка со скидкой", text)
         self.assertIn("/admin/promotions/promotionrequests/", text)
+
+
 from apps.common.test_utils import make_test_image
-from apps.promotions.models import Promotion, PromotionCondition
+from apps.promotions.models import (
+    Promotion,
+    PromotionCondition,
+    TargetAudience,
+    WhatPromotionInclude,
+    WhyItMatters,
+)
 
 
 class PromotionsBaseTestCase(TestCase):
@@ -86,7 +94,18 @@ class PromotionDetailAPITest(PromotionsBaseTestCase):
         )
         response = self.client.get(f"/api/v1/promotions/{self.promotion.slug}")
         data = response.json()
-        self.assertEqual(set(data.keys()), {"slug", "hero", "detail", "conditions"})
+        self.assertEqual(
+            set(data.keys()),
+            {
+                "slug",
+                "hero",
+                "detail",
+                "conditions",
+                "target_audience",
+                "what_promotion_include",
+                "why_it_matters",
+            },
+        )
         self.assertEqual(set(data["detail"].keys()), {"title", "content"})
         self.assertEqual(set(data["conditions"].keys()), {"title", "cards"})
         card = data["conditions"]["cards"][0]
@@ -94,9 +113,9 @@ class PromotionDetailAPITest(PromotionsBaseTestCase):
 
     def test_hero_repeats_list_card_contract(self):
         list_card = self.client.get("/api/v1/promotions").json()[0]
-        hero = self.client.get(
-            f"/api/v1/promotions/{self.promotion.slug}"
-        ).json()["hero"]
+        hero = self.client.get(f"/api/v1/promotions/{self.promotion.slug}").json()[
+            "hero"
+        ]
         self.assertEqual(hero, list_card)
 
     def test_conditions_default_title(self):
@@ -139,6 +158,28 @@ class PromotionDetailAPITest(PromotionsBaseTestCase):
     def test_detail_without_conditions_returns_empty_cards(self):
         response = self.client.get(f"/api/v1/promotions/{self.promotion.slug}")
         self.assertEqual(response.json()["conditions"]["cards"], [])
+
+    def test_detail_returns_new_sections(self):
+        TargetAudience.objects.create(
+            promotion=self.promotion,
+            title="Кому подходит",
+            description="Взрослым и детям",
+        )
+        WhatPromotionInclude.objects.create(
+            promotion=self.promotion,
+            title="Что входит",
+            description="Имплант и коронка",
+        )
+        WhyItMatters.objects.create(
+            promotion=self.promotion,
+            title="Почему важно",
+            description="Гарантия 10 лет",
+        )
+        response = self.client.get(f"/api/v1/promotions/{self.promotion.slug}")
+        data = response.json()
+        self.assertEqual(data["target_audience"][0]["title"], "Кому подходит")
+        self.assertEqual(data["what_promotion_include"][0]["title"], "Что входит")
+        self.assertEqual(data["why_it_matters"][0]["title"], "Почему важно")
 
 
 class PromotionConditionImageTest(PromotionsBaseTestCase):
@@ -264,7 +305,9 @@ class PromotionTypographyTest(TestCase):
 
     def test_api_typographs_plain_and_html_fields(self):
         data = self.client.get(f"/api/v1/promotions/{self.promotion.slug}").json()
-        self.assertEqual(data["hero"]["title"], "Акция «Белые зубы»&nbsp;&mdash; для всех")
+        self.assertEqual(
+            data["hero"]["title"], "Акция «Белые зубы»&nbsp;&mdash; для всех"
+        )
         self.assertEqual(
             data["hero"]["description"], "<p>Скидка 20&nbsp;% на&nbsp;чистку</p>"
         )

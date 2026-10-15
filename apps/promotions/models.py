@@ -139,3 +139,63 @@ class PromotionCondition(models.Model):
 
     def __str__(self):
         return self.title or self.description[:50]
+
+
+class TargetAudience(models.Model):
+    promotion = models.ForeignKey(
+        Promotion,
+        on_delete=models.CASCADE,
+        related_name="target_audience",
+        verbose_name="Акция",
+    )
+    title = models.CharField(max_length=255, verbose_name="Заголовок")
+    description = CKEditor5Field(
+        config_name="default", blank=True, verbose_name="Описание"
+    )
+
+    class Meta:
+        verbose_name = 'Для кого подходит'
+        verbose_name_plural = 'Для кого подходит'
+
+    def __str__(self): 
+        return self.title
+
+
+class WhatPromotionInclude(models.Model):
+    promotion = models.ForeignKey(
+        Promotion,
+        on_delete=models.CASCADE,
+        related_name="promotion_include",
+        verbose_name="Акция",
+    )
+    title = models.CharField(max_length=255, verbose_name="Заголовок")
+    description = CKEditor5Field(
+        config_name="default", blank=True, verbose_name="Описание"
+    )
+
+    class Meta:
+        verbose_name = 'Что включает акция'
+        verbose_name_plural = 'Что включает акция'
+    
+    def __str__(self): 
+        return self.title
+
+
+class WhyItMatters(models.Model):
+    promotion = models.ForeignKey(
+        Promotion,
+        on_delete=models.CASCADE,
+        related_name="why_it_matters",
+        verbose_name="Акция",
+    )
+    title = models.CharField(max_length=255, verbose_name="Заголовок")
+    description = CKEditor5Field(
+        config_name="default", blank=True, verbose_name="Описание"
+    )
+
+    class Meta:
+        verbose_name = 'Почему это важно'
+        verbose_name_plural = 'Почему это важно'
+        
+    def __str__(self): 
+        return self.title

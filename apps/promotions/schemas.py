@@ -55,11 +55,19 @@ class PromotionConditionsSchema(Schema):
         return obj.conditions.all()
 
 
+class PromotionTitleDescriptionSchema(Schema):
+    title: str
+    description: str
+
+
 class PromotionDetailSchema(Schema):
     slug: str
     hero: PromotionSchema
     detail: PromotionDetailSectionSchema
     conditions: PromotionConditionsSchema
+    target_audience: Optional[list[PromotionTitleDescriptionSchema]]
+    what_promotion_include: Optional[list[PromotionTitleDescriptionSchema]]
+    why_it_matters: Optional[list[PromotionTitleDescriptionSchema]]
 
     @staticmethod
     def resolve_hero(obj):
@@ -72,3 +80,7 @@ class PromotionDetailSchema(Schema):
     @staticmethod
     def resolve_conditions(obj):
         return obj
+
+    @staticmethod
+    def resolve_what_promotion_include(obj):
+        return obj.promotion_include.all()
