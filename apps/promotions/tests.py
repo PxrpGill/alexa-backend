@@ -8,7 +8,14 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 from django.urls import resolve
 from django.utils import timezone
+from django.contrib import admin
+from django.contrib.auth import get_user_model
 
+from apps.promotions.admin import (
+    PromotionTargetAudience,
+    PromotionWhatInclude,
+    PromotionWhyItMatters,
+)
 from apps.promotions.models import Promotion
 
 
@@ -54,6 +61,61 @@ from apps.promotions.models import (
     WhatPromotionInclude,
     WhyItMatters,
 )
+
+
+class PromotionAdminEmptyInlineTest(TestCase):
+    """Пустая строка инлайна не должна сохраняться: CKEditor пишет в поле
+    разметку вида "<p><br></p>", из-за чего Django считает форму изменённой
+    и без фильтра создавал бы пустые записи."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_superuser(
+            username="admin-empty-inline", email="", password="x"
+        )
+        self.request = type("AdminRequest", (), {"user": self.user})()
+        self.promotion = Promotion.objects.create(
+            title="Без секций", starts_at=timezone.localdate()
+        )
+
+    def _save_inline(self, inline_cls, model, title, description):
+        formset_class = inline_cls(Promotion, admin.site).get_formset(
+            self.request, self.promotion
+        )
+        formset = formset_class(
+            data={
+                "f-TOTAL_FORMS": "1",
+                "f-INITIAL_FORMS": "0",
+                "f-MIN_NUM_FORMS": "0",
+                "f-MAX_NUM_FORMS": formset_class.max_num,
+                "f-0-title": title,
+                "f-0-description": description,
+            },
+            files=None,
+            instance=self.promotion,
+            prefix="f",
+        )
+        self.assertTrue(formset.is_valid())
+        formset.save()
+
+    def test_empty_ckeditor_rows_are_not_created(self):
+        for inline_cls, model in [
+            (PromotionTargetAudience, TargetAudience),
+            (PromotionWhatInclude, WhatPromotionInclude),
+            (PromotionWhyItMatters, WhyItMatters),
+        ]:
+            with self.subTest(model=model.__name__):
+                self._save_inline(inline_cls, model, "", "<p><br></p>")
+                self.assertEqual(
+                    model.objects.filter(promotion=self.promotion).count(), 0
+                )
+
+    def test_filled_row_is_created(self):
+        self._save_inline(
+            PromotionTargetAudience, TargetAudience, "Кому подходит", "<p>Взрослым</p>"
+        )
+        row = TargetAudience.objects.get(promotion=self.promotion)
+        self.assertEqual(row.title, "Кому подходит")
+        self.assertEqual(row.description, "<p>Взрослым</p>")
 
 
 class PromotionsBaseTestCase(TestCase):
@@ -180,6 +242,34 @@ class PromotionDetailAPITest(PromotionsBaseTestCase):
         self.assertEqual(data["target_audience"][0]["title"], "Кому подходит")
         self.assertEqual(data["what_promotion_include"][0]["title"], "Что входит")
         self.assertEqual(data["why_it_matters"][0]["title"], "Почему важно")
+
+    def test_detail_skips_empty_section_rows(self):
+        TargetAudience.objects.create(
+            promotion=self.promotion, title="", description="<p><br></p>"
+        )
+        WhatPromotionInclude.objects.create(
+            promotion=self.promotion, title="", description="<p>&nbsp;</p>"
+        )
+        WhyItMatters.objects.create(promotion=self.promotion)
+        response = self.client.get(f"/api/v1/promotions/{self.promotion.slug}")
+        data = response.json()
+        self.assertEqual(data["target_audience"], [])
+        self.assertEqual(data["what_promotion_include"], [])
+        self.assertEqual(data["why_it_matters"], [])
+
+    def test_detail_keeps_only_non_empty_section_rows(self):
+        TargetAudience.objects.create(
+            promotion=self.promotion, title="", description="<p><br></p>"
+        )
+        TargetAudience.objects.create(
+            promotion=self.promotion,
+            title="Кому подходит",
+            description="Взрослым",
+        )
+        response = self.client.get(f"/api/v1/promotions/{self.promotion.slug}")
+        rows = response.json()["target_audience"]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["title"], "Кому подходит")
 
 
 class PromotionConditionImageTest(PromotionsBaseTestCase):

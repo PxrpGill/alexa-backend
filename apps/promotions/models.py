@@ -148,7 +148,7 @@ class TargetAudience(models.Model):
         related_name="target_audience",
         verbose_name="Акция",
     )
-    title = models.CharField(max_length=255, verbose_name="Заголовок")
+    title = models.CharField(max_length=255, verbose_name="Заголовок", blank=True)
     description = CKEditor5Field(
         config_name="default", blank=True, verbose_name="Описание"
     )
@@ -168,7 +168,7 @@ class WhatPromotionInclude(models.Model):
         related_name="promotion_include",
         verbose_name="Акция",
     )
-    title = models.CharField(max_length=255, verbose_name="Заголовок")
+    title = models.CharField(max_length=255, verbose_name="Заголовок", blank=True)
     description = CKEditor5Field(
         config_name="default", blank=True, verbose_name="Описание"
     )
@@ -188,7 +188,7 @@ class WhyItMatters(models.Model):
         related_name="why_it_matters",
         verbose_name="Акция",
     )
-    title = models.CharField(max_length=255, verbose_name="Заголовок")
+    title = models.CharField(max_length=255, verbose_name="Заголовок", blank=True)
     description = CKEditor5Field(
         config_name="default", blank=True, verbose_name="Описание"
     )

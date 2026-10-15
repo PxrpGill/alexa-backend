@@ -1,4 +1,8 @@
 from django.contrib import admin
+from django.forms.formsets import DELETION_FIELD_NAME, ORDERING_FIELD_NAME
+from django.forms.models import BaseInlineFormSet
+
+from .content import has_content
 from .models import (
     Promotion,
     PromotionCondition,
@@ -7,6 +11,36 @@ from .models import (
     WhyItMatters,
     TargetAudience,
 )
+
+# CKEditor пишет в пустое поле разметку вида "<p><br></p>" или "<p>&nbsp;</p>",
+# из-за чего пустая строка инлайна считается "изменённой" и Django сохраняет её.
+
+
+class SkipEmptyInlineFormSet(BaseInlineFormSet):
+    """Не сохранять новые строки инлайна, в которых все поля пустые."""
+
+    def save_new_objects(self, commit=True):
+        self.new_objects = []
+        for form in self.extra_forms:
+            if not form.has_changed():
+                continue
+            if self.can_delete and self._should_delete_form(form):
+                continue
+            if not self._has_content(form):
+                continue
+            self.new_objects.append(self.save_new(form, commit=commit))
+            if not commit:
+                self.saved_forms.append(form)
+        return self.new_objects
+
+    def _has_content(self, form):
+        cleaned = form.cleaned_data or {}
+        for field_name, value in cleaned.items():
+            if field_name in (DELETION_FIELD_NAME, self.fk.name, ORDERING_FIELD_NAME):
+                continue
+            if has_content(value):
+                return True
+        return False
 
 
 class PromotionConditionInline(admin.TabularInline):
@@ -17,18 +51,21 @@ class PromotionConditionInline(admin.TabularInline):
 
 class PromotionWhatInclude(admin.TabularInline):
     model = WhatPromotionInclude
+    formset = SkipEmptyInlineFormSet
     extra = 1
     fields = ["title", "description"]
 
 
 class PromotionWhyItMatters(admin.TabularInline):
     model = WhyItMatters
+    formset = SkipEmptyInlineFormSet
     extra = 1
     fields = ["title", "description"]
 
 
 class PromotionTargetAudience(admin.TabularInline):
     model = TargetAudience
+    formset = SkipEmptyInlineFormSet
     extra = 1
     fields = ["title", "description"]
 

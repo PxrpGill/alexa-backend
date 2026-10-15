@@ -2,6 +2,7 @@ from ninja import Schema
 from datetime import date
 from typing import Optional
 from apps.common.schemas import PictureFormatSchema, build_picture_format
+from apps.promotions.content import has_content
 
 
 class PromotionSchema(Schema):
@@ -82,5 +83,17 @@ class PromotionDetailSchema(Schema):
         return obj
 
     @staticmethod
+    def resolve_target_audience(obj):
+        return _non_empty_rows(obj.target_audience.all())
+
+    @staticmethod
     def resolve_what_promotion_include(obj):
-        return obj.promotion_include.all()
+        return _non_empty_rows(obj.promotion_include.all())
+
+    @staticmethod
+    def resolve_why_it_matters(obj):
+        return _non_empty_rows(obj.why_it_matters.all())
+
+
+def _non_empty_rows(rows):
+    return [row for row in rows if has_content(row.title) or has_content(row.description)]
