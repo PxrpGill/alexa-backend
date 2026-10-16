@@ -174,6 +174,11 @@ FRONTEND_URL = config("FRONTEND_URL", default="")
 
 CKEDITOR_5_CONFIGS = {
     "default": {
+        "ui": {
+            "viewportOffset": {
+                "top": 70,
+            }
+        },
         "toolbar": {
             "items": [
                 "heading",
@@ -191,7 +196,8 @@ CKEDITOR_5_CONFIGS = {
                 "|",
                 "imageUpload",
                 "|",
-                "undo",
+                "insertTable",
+                "|undo",
                 "redo",
             ],
         },
@@ -230,6 +236,7 @@ CKEDITOR_5_CONFIGS = {
 CKEDITOR_5_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
 
 JAZZMIN_SETTINGS = {
+    "custom_css": ["css/ckeditor5.css"],
     "site_title": "Алекса Администрация",
     "site_brand": "Стоматология Алекса",
     "site_header": "Алекса",

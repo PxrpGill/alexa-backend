@@ -34,10 +34,10 @@ class Promotion(ImageVariantsMixin, models.Model):
     detail_description = CKEditor5Field(
         config_name="default", blank=True, verbose_name="Подробное описание"
     )
-    conditions_title = models.CharField(
-        max_length=255,
-        default="Условия акции",
-        verbose_name="Заголовок условий акции",
+    detail_content = CKEditor5Field(
+        config_name="default",
+        blank=True,
+        verbose_name="Контент внутренней страницы акции",
     )
     starts_at = models.DateField(verbose_name="Начало")
     ends_at = models.DateField(null=True, blank=True, verbose_name="Окончание")
@@ -108,34 +108,22 @@ class PromotionRequests(models.Model):
         return f"{self.patient_name}"
 
 
-class PromotionCondition(models.Model):
-    promotion = models.ForeignKey(
+class PromotionRequestFormModel(models.Model):
+    title = models.CharField(
+        max_length=255, verbose_name="Заголовок формы", blank=False
+    )
+    description = models.TextField(verbose_name="Описание формы записи", blank=True)
+    button_text = models.CharField(max_length=32, blank=True, verbose_name="Текст кнопки записи")
+    promotion = models.OneToOneField(
         Promotion,
         on_delete=models.CASCADE,
-        related_name="conditions",
+        related_name="feedback_form",
         verbose_name="Акция",
     )
-    icon = models.FileField(
-        upload_to="promotions/icons/",
-        blank=True,
-        validators=[
-            FileExtensionValidator(
-                allowed_extensions=["svg", "png", "jpg", "jpeg", "webp", "avif"]
-            )
-        ],
-        verbose_name="Иконка",
-        help_text="Отдаётся фронтенду как есть, без конвертации. Можно загрузить SVG.",
-    )
-    title = models.CharField(max_length=255, blank=True, verbose_name="Заголовок")
-    description = models.TextField(verbose_name="Описание")
-    sort_order = models.PositiveIntegerField(
-        default=0, verbose_name="Порядок отображения"
-    )
 
-    class Meta:
-        verbose_name = "Условие акции"
-        verbose_name_plural = "Условия акции"
-        ordering = ["sort_order", "id"]
+    class Meta: 
+        verbose_name = 'Форма заявки акции'
+        verbose_name_plural = 'Форма заявки акций'
 
     def __str__(self):
-        return self.title or self.description[:50]
+        return self.title

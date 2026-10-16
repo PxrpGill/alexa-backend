@@ -1,15 +1,11 @@
 from unittest.mock import patch
-import shutil
-import tempfile
 from datetime import timedelta
 
-from django.core.exceptions import ValidationError
-from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 from django.urls import resolve
 from django.utils import timezone
 
-from apps.promotions.models import Promotion
+from apps.promotions.models import Promotion, PromotionRequestFormModel
 
 
 @override_settings(MAX_NOTIFICATIONS_ENABLED=True, SITE_URL="https://alexa.ru")
@@ -44,8 +40,6 @@ class PromotionRequestMaxNotificationTest(TestCase):
         self.assertIn("Иван Иванов", text)
         self.assertIn("Чистка со скидкой", text)
         self.assertIn("/admin/promotions/promotionrequests/", text)
-from apps.common.test_utils import make_test_image
-from apps.promotions.models import Promotion, PromotionCondition
 
 
 class PromotionsBaseTestCase(TestCase):
@@ -77,42 +71,36 @@ class PromotionDetailAPITest(PromotionsBaseTestCase):
             data["detail"]["content"],
             "<p>Консультация, снимок и&nbsp;установка импланта</p>",
         )
+        self.assertIsNone(data["detail_content"])
+        self.assertIsNone(data["form"])
 
     def test_detail_contract_structure(self):
-        PromotionCondition.objects.create(
-            promotion=self.promotion,
-            title="Срок",
-            description="Акция действует до конца месяца",
-        )
         response = self.client.get(f"/api/v1/promotions/{self.promotion.slug}")
         data = response.json()
-        self.assertEqual(set(data.keys()), {"slug", "hero", "detail", "conditions"})
+        self.assertEqual(
+            set(data.keys()),
+            {"slug", "hero", "detail", "detail_content", "form"},
+        )
+        self.assertEqual(
+            set(data["hero"].keys()),
+            {
+                "slug",
+                "title",
+                "description",
+                "banner",
+                "starts_at",
+                "ends_at",
+                "is_active",
+            },
+        )
         self.assertEqual(set(data["detail"].keys()), {"title", "content"})
-        self.assertEqual(set(data["conditions"].keys()), {"title", "cards"})
-        card = data["conditions"]["cards"][0]
-        self.assertEqual(set(card.keys()), {"icon", "title", "description"})
 
     def test_hero_repeats_list_card_contract(self):
         list_card = self.client.get("/api/v1/promotions").json()[0]
-        hero = self.client.get(
-            f"/api/v1/promotions/{self.promotion.slug}"
-        ).json()["hero"]
+        hero = self.client.get(f"/api/v1/promotions/{self.promotion.slug}").json()[
+            "hero"
+        ]
         self.assertEqual(hero, list_card)
-
-    def test_conditions_default_title(self):
-        response = self.client.get(f"/api/v1/promotions/{self.promotion.slug}")
-        self.assertEqual(response.json()["conditions"]["title"], "Условия акции")
-
-    def test_conditions_ordered_by_sort_order(self):
-        PromotionCondition.objects.create(
-            promotion=self.promotion, title="Второе", description="b", sort_order=2
-        )
-        PromotionCondition.objects.create(
-            promotion=self.promotion, title="Первое", description="a", sort_order=1
-        )
-        response = self.client.get(f"/api/v1/promotions/{self.promotion.slug}")
-        titles = [card["title"] for card in response.json()["conditions"]["cards"]]
-        self.assertEqual(titles, ["Первое", "Второе"])
 
     def test_detail_unknown_slug_returns_404(self):
         response = self.client.get("/api/v1/promotions/net-takoy-akcii")
@@ -136,70 +124,31 @@ class PromotionDetailAPITest(PromotionsBaseTestCase):
         response = self.client.get(f"/api/v1/promotions/{self.promotion.slug}")
         self.assertEqual(response.status_code, 404)
 
-    def test_detail_without_conditions_returns_empty_cards(self):
-        response = self.client.get(f"/api/v1/promotions/{self.promotion.slug}")
-        self.assertEqual(response.json()["conditions"]["cards"], [])
+    def test_detail_returns_detail_content(self):
+        self.promotion.detail_content = "<p>Программа лояльности и бонусы</p>"
+        self.promotion.save()
+        data = self.client.get(f"/api/v1/promotions/{self.promotion.slug}").json()
+        self.assertEqual(
+            data["detail_content"],
+            "<p>Программа лояльности и&nbsp;бонусы</p>",
+        )
 
-
-class PromotionConditionImageTest(PromotionsBaseTestCase):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.media_root = tempfile.mkdtemp()
-        cls.override = override_settings(MEDIA_ROOT=cls.media_root)
-        cls.override.enable()
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.override.disable()
-        shutil.rmtree(cls.media_root, ignore_errors=True)
-        super().tearDownClass()
-
-    def test_condition_icon_returned_as_source_url(self):
-        """Иконка условия отдаётся ссылкой на исходный файл, без webp/avif."""
-        PromotionCondition.objects.create(
+    def test_detail_returns_feedback_form(self):
+        PromotionRequestFormModel.objects.create(
             promotion=self.promotion,
-            icon=make_test_image(name="condition.jpg"),
-            title="Гарантия",
-            description="Гарантия на имплант 10 лет",
+            title="Форма заявки на акцию",
+            description="Заполните форму",
+            button_text="Отправить",
         )
-        response = self.client.get(f"/api/v1/promotions/{self.promotion.slug}")
-        self.assertEqual(response.status_code, 200)
-        icon = response.json()["conditions"]["cards"][0]["icon"]
-        self.assertIsInstance(icon, str)
-        self.assertTrue(icon.endswith(".jpg"))
-
-    def test_condition_icon_accepts_svg(self):
-        PromotionCondition.objects.create(
-            promotion=self.promotion,
-            icon=SimpleUploadedFile(
-                "condition.svg",
-                b'<svg xmlns="http://www.w3.org/2000/svg"></svg>',
-                content_type="image/svg+xml",
-            ),
-            title="Рассрочка",
-            description="Рассрочка на 12 месяцев",
+        data = self.client.get(f"/api/v1/promotions/{self.promotion.slug}").json()
+        self.assertEqual(
+            data["form"],
+            {
+                "title": "Форма заявки на&nbsp;акцию",
+                "description": "Заполните форму",
+                "button_text": "Отправить",
+            },
         )
-        response = self.client.get(f"/api/v1/promotions/{self.promotion.slug}")
-        icon = response.json()["conditions"]["cards"][0]["icon"]
-        self.assertTrue(icon.endswith(".svg"))
-
-    def test_condition_icon_rejects_unsupported_extension(self):
-        condition = PromotionCondition(
-            promotion=self.promotion,
-            icon=SimpleUploadedFile("condition.exe", b"MZ"),
-            title="Плохая иконка",
-            description="Описание",
-        )
-        with self.assertRaises(ValidationError):
-            condition.full_clean()
-
-    def test_condition_without_icon_returns_empty_string(self):
-        PromotionCondition.objects.create(
-            promotion=self.promotion, title="Без иконки", description="Описание"
-        )
-        response = self.client.get(f"/api/v1/promotions/{self.promotion.slug}")
-        self.assertEqual(response.json()["conditions"]["cards"][0]["icon"], "")
 
 
 class PromotionRouteOrderTest(TestCase):
@@ -253,33 +202,24 @@ class PromotionTypographyTest(TestCase):
             description='<p style="color:red">Скидка 20 % на чистку</p>',
             detail_title="Что входит - список",
             detail_description="<p>Консультация и снимок</p>",
-            conditions_title="Условия - важно",
             starts_at=timezone.localdate(),
-        )
-        PromotionCondition.objects.create(
-            promotion=self.promotion,
-            title="Срок - до конца месяца",
-            description="Действует в Москве",
         )
 
     def test_api_typographs_plain_and_html_fields(self):
         data = self.client.get(f"/api/v1/promotions/{self.promotion.slug}").json()
-        self.assertEqual(data["hero"]["title"], "Акция «Белые зубы»&nbsp;&mdash; для всех")
+        self.assertEqual(
+            data["hero"]["title"], "Акция «Белые зубы»&nbsp;&mdash; для всех"
+        )
         self.assertEqual(
             data["hero"]["description"], "<p>Скидка 20&nbsp;% на&nbsp;чистку</p>"
         )
         self.assertNotIn("style", data["hero"]["description"])
         self.assertEqual(data["detail"]["title"], "Что входит&nbsp;&mdash; список")
-        self.assertEqual(data["conditions"]["title"], "Условия&nbsp;&mdash; важно")
-        card = data["conditions"]["cards"][0]
-        self.assertEqual(card["title"], "Срок&nbsp;&mdash; до&nbsp;конца месяца")
-        self.assertEqual(card["description"], "Действует в&nbsp;Москве")
 
     def test_api_keeps_service_fields_untouched(self):
         data = self.client.get(f"/api/v1/promotions/{self.promotion.slug}").json()
         self.assertEqual(data["slug"], self.promotion.slug)
         self.assertNotIn("&mdash;", data["slug"])
-        self.assertEqual(data["conditions"]["cards"][0]["icon"], "")
 
     def test_db_keeps_original_text(self):
         self.promotion.refresh_from_db()
