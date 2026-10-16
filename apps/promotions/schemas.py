@@ -32,43 +32,26 @@ class PromotionDetailSectionSchema(Schema):
     content: str
 
 
-class PromotionConditionCardSchema(Schema):
-    icon: str
+class PromotionFeedbackFormSchema(Schema):
     title: str
-    description: str
+    description: Optional[str] = None
+    button_text: Optional[str] = None
 
     @staticmethod
-    def resolve_icon(obj):
-        """Иконка отдаётся исходным файлом (в т.ч. SVG), без webp/avif-вариантов."""
-        return obj.icon.url if obj.icon else ""
-
-
-class PromotionConditionsSchema(Schema):
-    title: str
-    cards: list[PromotionConditionCardSchema]
+    def resolve_description(obj):
+        return obj.description or None
 
     @staticmethod
-    def resolve_title(obj):
-        return obj.conditions_title
-
-    @staticmethod
-    def resolve_cards(obj):
-        return obj.conditions.all()
-
-
-class PromotionTitleDescriptionSchema(Schema):
-    title: str
-    description: str
+    def resolve_button_text(obj):
+        return obj.button_text or None
 
 
 class PromotionDetailSchema(Schema):
     slug: str
     hero: PromotionSchema
     detail: PromotionDetailSectionSchema
-    conditions: PromotionConditionsSchema
-    target_audience: Optional[list[PromotionTitleDescriptionSchema]]
-    what_promotion_include: Optional[list[PromotionTitleDescriptionSchema]]
-    why_it_matters: Optional[list[PromotionTitleDescriptionSchema]]
+    detail_content: Optional[str] = None
+    form: Optional[PromotionFeedbackFormSchema] = None
 
     @staticmethod
     def resolve_hero(obj):
@@ -79,21 +62,15 @@ class PromotionDetailSchema(Schema):
         return {"title": obj.detail_title, "content": obj.detail_description}
 
     @staticmethod
-    def resolve_conditions(obj):
-        return obj
+    def resolve_form(obj):
+        return getattr(obj, "feedback_form", None)
 
     @staticmethod
-    def resolve_target_audience(obj):
-        return _non_empty_rows(obj.target_audience.all())
-
-    @staticmethod
-    def resolve_what_promotion_include(obj):
-        return _non_empty_rows(obj.promotion_include.all())
-
-    @staticmethod
-    def resolve_why_it_matters(obj):
-        return _non_empty_rows(obj.why_it_matters.all())
+    def resolve_detail_content(obj):
+        return obj.detail_content or None
 
 
 def _non_empty_rows(rows):
-    return [row for row in rows if has_content(row.title) or has_content(row.description)]
+    return [
+        row for row in rows if has_content(row.title) or has_content(row.description)
+    ]

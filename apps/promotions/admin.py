@@ -5,11 +5,8 @@ from django.forms.models import BaseInlineFormSet
 from .content import has_content
 from .models import (
     Promotion,
-    PromotionCondition,
     PromotionRequests,
-    WhatPromotionInclude,
-    WhyItMatters,
-    TargetAudience,
+    PromotionRequestFormModel
 )
 
 # CKEditor пишет в пустое поле разметку вида "<p><br></p>" или "<p>&nbsp;</p>",
@@ -43,45 +40,17 @@ class SkipEmptyInlineFormSet(BaseInlineFormSet):
         return False
 
 
-class PromotionConditionInline(admin.TabularInline):
-    model = PromotionCondition
+class PromotionRequestFormAdminModel(admin.StackedInline):
+    model = PromotionRequestFormModel
     extra = 1
-    fields = ["icon", "title", "description", "sort_order"]
-
-
-class PromotionWhatInclude(admin.TabularInline):
-    model = WhatPromotionInclude
-    formset = SkipEmptyInlineFormSet
-    extra = 1
-    fields = ["title", "description"]
-
-
-class PromotionWhyItMatters(admin.TabularInline):
-    model = WhyItMatters
-    formset = SkipEmptyInlineFormSet
-    extra = 1
-    fields = ["title", "description"]
-
-
-class PromotionTargetAudience(admin.TabularInline):
-    model = TargetAudience
-    formset = SkipEmptyInlineFormSet
-    extra = 1
-    fields = ["title", "description"]
-
 
 @admin.register(Promotion)
 class PromotionAdmin(admin.ModelAdmin):
-    inlines = [
-        PromotionConditionInline,
-        PromotionWhatInclude,
-        PromotionWhyItMatters,
-        PromotionTargetAudience,
-    ]
     list_display = ["title", "starts_at", "ends_at", "is_active"]
     list_editable = ["is_active"]
     list_filter = ["is_active"]
     search_fields = ["title"]
+    inlines = [PromotionRequestFormAdminModel]
 
 
 @admin.register(PromotionRequests)

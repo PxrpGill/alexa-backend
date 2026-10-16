@@ -1,0 +1,9 @@
+.ck-editor__top {
+    position: sticky;
+    top: 70px;
+    z-index: 1030;
+}
+
+.ck.ck-sticky-panel__content {
+    position: static !important;
+}

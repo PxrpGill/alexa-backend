@@ -65,8 +65,6 @@ def request_to_promotion(request, payload: PromotionRequestSchema):
 def get_promotion(request, slug: str):
     """Внутренняя страница акции: hero, подробное описание и условия."""
     return get_object_or_404(
-        active_promotions().prefetch_related(
-            "conditions", "target_audience", "promotion_include", "why_it_matters"
-        ),
+        active_promotions().prefetch_related("feedback_form"),
         slug=slug,
     )
