@@ -9,7 +9,7 @@ router = Router(tags=['Врачи'])
 @router.get('/', response=list[DoctorSchema])
 def list_doctors(request):
     """Список активных врачей."""
-    return Doctor.objects.filter(is_active=True).prefetch_related('specializations')
+    return Doctor.objects.filter(is_active=True)
 
 
 @router.get('/{doctor_id}/', response=DoctorSchema)
