@@ -2,6 +2,8 @@ from django.contrib import admin
 from django.urls import reverse
 from django.utils.html import format_html
 
+from apps.common.admin import make_image_preview
+
 from .models import (
     Application,
     Vacancy,
@@ -36,16 +38,28 @@ class VacancyBenefitInline(admin.TabularInline):
 class VacancyBenefitImageInline(admin.TabularInline):
     model = VacancyBenefitImage
     extra = 0
+    fields = ["image", "image_preview", "alt", "sort_order"]
+    readonly_fields = ["image_preview"]
+
+    image_preview = make_image_preview("image")
 
 
 class VacancyRequirementInline(admin.TabularInline):
     model = VacancyRequirement
     extra = 0
+    fields = ["type", "icon", "icon_preview", "title", "description", "sort_order"]
+    readonly_fields = ["icon_preview"]
+
+    icon_preview = make_image_preview("icon", label="Иконка")
 
 
 class VacancyResponsibilityInline(admin.TabularInline):
     model = VacancyResponsibility
     extra = 0
+    fields = ["image", "image_preview", "title", "description", "sort_order"]
+    readonly_fields = ["image_preview"]
+
+    image_preview = make_image_preview("image")
 
 
 @admin.register(Vacancy)

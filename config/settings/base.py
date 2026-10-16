@@ -26,6 +26,7 @@ THIRD_PARTY_APPS = [
     "ninja",
     "corsheaders",
     "django_ckeditor_5",
+    "nested_admin",
 ]
 
 LOCAL_APPS = [
@@ -236,7 +237,7 @@ CKEDITOR_5_CONFIGS = {
 CKEDITOR_5_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
 
 JAZZMIN_SETTINGS = {
-    "custom_css": ["css/ckeditor5.css"],
+    "custom_css": ["css/ckeditor5.css", "css/admin.css"],
     "site_title": "Алекса Администрация",
     "site_brand": "Стоматология Алекса",
     "site_header": "Алекса",
@@ -249,12 +250,15 @@ JAZZMIN_SETTINGS = {
         "auth": "fas fa-users-cog",
         "users.user": "fas fa-user",
         "doctors.doctor": "fas fa-user-md",
-        "doctors.specialization": "fas fa-stethoscope",
+        "doctors.doctorreferral": "fas fa-stethoscope",
         "blog.blogcategory": "fas fa-tag",
         "blog.blogpost": "fas fa-newspaper",
+        "branch.branchmodel": "fas fa-hospital",
         "promotions.promotion": "fas fa-percent",
-        "promotions.promotioncondition": "fas fa-list-check",
+        "promotions.promotionrequests": "fas fa-hand-holding-heart",
         "appointments.appointment": "fas fa-calendar-check",
+        "dms.dms": "fas fa-id-card",
+        "consultation.consultation": "fas fa-comments",
         "vacancies.vacancycategory": "fas fa-layer-group",
         "vacancies.vacancy": "fas fa-briefcase",
         "vacancies.application": "fas fa-file-signature",
@@ -267,6 +271,18 @@ JAZZMIN_SETTINGS = {
         "appointments",
         "vacancies",
     ],
+    # Related-попапы открываются модалкой, а не отдельным окном.
+    "related_modal_active": True,
+    # Страницы с несколькими inline складываются в аккордеон, иначе простыня
+    # на несколько экранов. Табы не берём: внутри скрытых табов CKEditor и
+    # вложенные inline (nested_admin) инициализируются ненадёжно.
+    "changeform_format": "single",
+    "changeform_format_overrides": {
+        "doctors.doctor": "collapsible",
+        "vacancies.vacancy": "collapsible",
+        "promotions.promotion": "collapsible",
+        "blog.blogpost": "collapsible",
+    },
     "default_icon_parents": "fas fa-chevron-circle-right",
     "default_icon_children": "fas fa-circle",
 }

@@ -13,6 +13,7 @@ from django.test import RequestFactory, TestCase, override_settings
 from django.utils import timezone
 from PIL import Image
 
+from apps.common.admin import make_image_preview
 from apps.common.images import generate_image_variants
 from apps.common.leads import build_page_url
 from apps.common.max import (
@@ -662,3 +663,35 @@ class TypographDataTest(TestCase):
     def test_returns_empty_and_none_unchanged(self):
         self.assertEqual(typograph_data({'title': ''}), {'title': ''})
         self.assertIsNone(typograph_data(None))
+
+
+class MakeImagePreviewTest(TestCase):
+    """Миниатюра картинки для админки: тег img при файле и прочерк без него."""
+
+    class Obj:
+        def __init__(self, photo):
+            self.photo = photo
+
+    def setUp(self):
+        self.storage = FileSystemStorage(location=tempfile.mkdtemp(), base_url='/media/')
+        self.addCleanup(shutil.rmtree, self.storage.location, ignore_errors=True)
+
+    def test_renders_img_tag_for_existing_file(self):
+        name = self.storage.save('doctors/photo.jpg', make_test_image())
+        preview = make_image_preview('photo')
+
+        html = preview(None, self.Obj(FieldFileStub(self.storage, name)))
+
+        self.assertIn('<img', html)
+        self.assertIn('/media/doctors/photo', html)
+        self.assertIn('admin-image-preview', html)
+
+    def test_renders_dash_without_file(self):
+        preview = make_image_preview('photo')
+        self.assertEqual(preview(None, self.Obj(None)), '—')
+
+    def test_label_and_name_are_set(self):
+        preview = make_image_preview('banner_mobile', label='Баннер (моб.)')
+
+        self.assertEqual(preview.short_description, 'Баннер (моб.)')
+        self.assertEqual(preview.__name__, 'banner_mobile_preview')

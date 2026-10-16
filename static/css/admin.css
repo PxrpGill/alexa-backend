@@ -1,0 +1,211 @@
+/* Доводка admin-панели: миниатюры картинок и вложенные inline django-nested-admin
+   под вёрстку jazzmin (AdminLTE/Bootstrap 4). Подключается через
+   JAZZMIN_SETTINGS['custom_css'].
+
+   Зачем CSS, а не переопределение шаблонов: nested_admin рисует inline своими
+   шаблонами (nesting/admin/inlines/*.html) в обход jazzmin, и переопределение
+   означало бы копию ~90 строк чужого шаблона, которая молча разойдётся с
+   апстримом при обновлении пакета. */
+
+/* --- Миниатюры (apps/common/admin.py: make_image_preview) --- */
+.admin-image-preview {
+    max-width: 160px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    background: #fff;
+    padding: 2px;
+    object-fit: contain;
+    vertical-align: middle;
+}
+
+.form-row input[type="file"],
+.djn-inline-form input[type="file"] {
+    max-width: 320px;
+}
+
+/* --- Заголовки групп --- */
+
+/* Корневая группа лежит внутри карточки jazzmin, у которой уже есть шапка
+   с тем же названием, — убираем второй такой же заголовок. */
+.djn-group-root > .djn-fieldset > h2 {
+    display: none;
+}
+
+/* Вложенная группа («Файлы аккредитации») — единственная подпись своего блока,
+   поэтому остаётся, но как компактный подзаголовок. */
+.djn-group-nested h2 {
+    margin: 0 0 0.5rem;
+    padding: 0;
+    background: none;
+    border: 0;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #6c757d;
+}
+
+/* --- Группы --- */
+.djn-group-root {
+    border: 0;
+    background: transparent;
+}
+
+/* Вложенная группа — карточка с отступом и левой полосой, чтобы была видна
+   иерархия «аккредитация → её файлы». */
+.djn-group-nested {
+    margin: 0.5rem 0 0.75rem;
+    padding: 0.75rem;
+    background: #fbfcfd;
+    border: 1px solid #e9ecef;
+    border-left: 3px solid #adb5bd;
+    border-radius: 0.25rem;
+}
+
+/* --- Шапка строки inline --- */
+.djn-inline-form > h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 0 0.75rem;
+    padding: 0.4rem 0.6rem;
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 0.25rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #495057;
+}
+
+/* Название модели повторяется в шапке карточки и перед каждой строкой — лишнее. */
+.djn-inline-form > h3 > b {
+    display: none;
+}
+
+/* Всё, что идёт после названия строки (удаление), прижимается вправо. */
+.djn-inline-form > h3 .inline_label {
+    margin-right: auto;
+    font-weight: 600;
+}
+
+.djn-inline-form {
+    margin-bottom: 1rem;
+}
+
+/* --- Удаление строки --- */
+.djn-delete-handler {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.8125rem;
+    font-weight: 400;
+}
+
+.djn-delete-handler label {
+    margin: 0;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    color: #dc3545;
+}
+
+/* Ссылка удаления ещё не сохранённой строки: в шаблоне nested_admin её текст
+   зашит по-английски («Remove»), подменяем на русский. */
+.djn-remove-handler {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border: 1px solid #dc3545;
+    border-radius: 0.2rem;
+    color: #dc3545;
+    background: transparent;
+    font-size: 0 !important;
+    line-height: 1.5;
+    text-decoration: none;
+}
+
+.djn-remove-handler::after {
+    content: "Убрать";
+    font-size: 0.8125rem;
+}
+
+.djn-remove-handler:hover {
+    color: #fff;
+    background: #dc3545;
+}
+
+/* --- Кнопка добавления --- */
+.djn-add-handler {
+    display: inline-block;
+    margin: 0.35rem 0;
+    padding: 0.25rem 0.6rem;
+    border: 1px solid #007bff;
+    border-radius: 0.2rem;
+    background: #007bff;
+    color: #fff;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    text-decoration: none;
+}
+
+.djn-add-handler:hover {
+    background: #0069d9;
+    border-color: #0062cc;
+    color: #fff;
+}
+
+/* --- Поля внутри inline (разметка Django, не bootstrap-овская) --- */
+.djn-inline-form .form-row {
+    padding: 0.35rem 0;
+    border: 0;
+}
+
+.djn-inline-form .flex-container {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.djn-inline-form .flex-container > label {
+    flex: 0 0 220px;
+    max-width: 220px;
+    margin: 0;
+    font-weight: 500;
+    color: #495057;
+}
+
+.djn-inline-form input[type="text"],
+.djn-inline-form input[type="number"],
+.djn-inline-form input[type="url"],
+.djn-inline-form input[type="email"],
+.djn-inline-form select,
+.djn-inline-form textarea {
+    max-width: 520px;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid #ced4da;
+    border-radius: 0.25rem;
+}
+
+/* --- Табличный inline --- */
+.djn-table {
+    width: 100%;
+}
+
+.djn-table th.djn-th {
+    padding: 0.4rem 0.5rem;
+    border-bottom: 1px solid #dee2e6;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #6c757d;
+}
+
+.djn-table td {
+    padding: 0.4rem 0.5rem;
+    border-top: 1px solid #f1f3f5;
+    vertical-align: middle;
+}
+
+.djn-group .djn-table-wrapper {
+    overflow-x: auto;
+}

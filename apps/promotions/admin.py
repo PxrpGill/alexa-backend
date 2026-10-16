@@ -2,6 +2,8 @@ from django.contrib import admin
 from django.forms.formsets import DELETION_FIELD_NAME, ORDERING_FIELD_NAME
 from django.forms.models import BaseInlineFormSet
 
+from apps.common.admin import make_image_preview
+
 from .content import has_content
 from .models import (
     Promotion,
@@ -46,11 +48,32 @@ class PromotionRequestFormAdminModel(admin.StackedInline):
 
 @admin.register(Promotion)
 class PromotionAdmin(admin.ModelAdmin):
-    list_display = ["title", "starts_at", "ends_at", "is_active"]
+    list_display = ["banner_preview", "title", "starts_at", "ends_at", "is_active"]
     list_editable = ["is_active"]
     list_filter = ["is_active"]
     search_fields = ["title"]
+    readonly_fields = ["banner_preview", "banner_mobile_preview"]
+    fieldsets = (
+        (None, {"fields": ("title", "slug", "description", "is_active")}),
+        (
+            "Баннеры",
+            {
+                "fields": (
+                    ("banner", "banner_preview"),
+                    ("banner_mobile", "banner_mobile_preview"),
+                )
+            },
+        ),
+        (
+            "Внутренняя страница",
+            {"fields": ("detail_title", "detail_description", "detail_content")},
+        ),
+        ("Сроки", {"fields": ("starts_at", "ends_at")}),
+    )
     inlines = [PromotionRequestFormAdminModel]
+
+    banner_preview = make_image_preview("banner", label="Баннер")
+    banner_mobile_preview = make_image_preview("banner_mobile", label="Баннер (моб.)")
 
 
 @admin.register(PromotionRequests)
