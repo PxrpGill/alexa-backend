@@ -173,6 +173,8 @@ X-Accel-Redirect в проде и `FileResponse` в dev (`USE_X_ACCEL_REDIRECT`)
 видео → ffmpeg (`apps/stories/media.py`): H.264/AAC mp4 с faststart в рамке 1080×1920 и
 720×1280 (по ориентации, без апскейла) + постер первого кадра в webp, имена — в
 `video_src`/`video_mobile`/`video_poster`.
+Файлы сторисов получают случайное имя (`UniqueUploadTo`): варианты строятся от имени без
+расширения, и `photo.png` с `photo.jpg` иначе делили бы один `photo.webp`.
 
 У кадра `processing_status` (pending → processing → ready | error); `GET /stories` отдаёт
 только `ready`-кадры, группы без них не попадают в ответ. Поля обработки пишет только

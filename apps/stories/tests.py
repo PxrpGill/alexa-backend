@@ -94,6 +94,29 @@ class StoryImageProcessingTest(StoriesTestCase):
         ):
             self.assertTrue(storage.exists(name), name)
 
+    def test_same_base_name_with_different_extensions_does_not_share_variants(self):
+        # photo.png и photo.jpg раньше делили photo.webp/photo.avif: вторая загрузка
+        # видела готовые варианты и отдавала картинку первой.
+        group = self.make_group()
+        with self.captureOnCommitCallbacks(execute=True):
+            png = StoryItem.objects.create(
+                group=group,
+                image=make_test_image("photo.png", img_format="PNG", size=(20, 20)),
+            )
+        with self.captureOnCommitCallbacks(execute=True):
+            jpg = StoryItem.objects.create(
+                group=group, image=make_test_image("photo.jpg", size=(30, 30))
+            )
+
+        posters = [i["poster"] for i in self.get_groups()[0]["items"]]
+        self.assertEqual(len(posters), 2)
+        for key in ("webp", "avif"):
+            self.assertNotEqual(posters[0][key]["src"], posters[1][key]["src"])
+            self.assertNotEqual(posters[0][key]["mobile"], posters[1][key]["mobile"])
+        self.assertNotEqual(
+            os.path.splitext(png.image.name)[0], os.path.splitext(jpg.image.name)[0]
+        )
+
     def test_mobile_copy_is_downscaled_to_750(self):
         from PIL import Image
 
