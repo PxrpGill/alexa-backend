@@ -1,4 +1,6 @@
 import logging
+import os
+import uuid
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -9,6 +11,7 @@ from django.core.validators import (
 )
 from django.db import models, transaction
 from django.utils import timezone
+from django.utils.deconstruct import deconstructible
 
 from .media import MediaProcessingError, probe_uploaded_duration
 
@@ -22,6 +25,23 @@ PROCESSING_FIELDS = frozenset({
 })
 
 
+@deconstructible
+class UniqueUploadTo:
+    """Случайное имя файла в каталоге, расширение сохраняется.
+
+    Варианты (.webp/.avif, -m копия, -src.mp4…) строятся от имени без
+    расширения, а Django при коллизии сверяет только полное имя: photo.png и
+    photo.jpg делили бы photo.webp, и второй кадр показывал бы картинку первого.
+    """
+
+    def __init__(self, directory):
+        self.directory = directory
+
+    def __call__(self, instance, filename):
+        ext = os.path.splitext(filename)[1].lower()
+        return f"{self.directory}{uuid.uuid4().hex}{ext}"
+
+
 class StoryGroup(models.Model):
     """Группа сторисов — один кружок в ленте на главной."""
 
@@ -32,7 +52,7 @@ class StoryGroup(models.Model):
         help_text="Подпись под кружком и в шапке просмотрщика, до 30 символов",
     )
     preview = models.ImageField(
-        upload_to="stories/previews/",
+        upload_to=UniqueUploadTo("stories/previews/"),
         verbose_name="Обложка",
         help_text="Квадрат, от 300×300",
     )
@@ -105,13 +125,13 @@ class StoryItem(models.Model):
         verbose_name="Тип",
     )
     image = models.ImageField(
-        upload_to="stories/images/",
+        upload_to=UniqueUploadTo("stories/images/"),
         blank=True,
         verbose_name="Картинка",
         help_text="Вертикальный кадр 9:16, от 1080×1920",
     )
     video = models.FileField(
-        upload_to="stories/videos/",
+        upload_to=UniqueUploadTo("stories/videos/"),
         blank=True,
         validators=[FileExtensionValidator(VIDEO_EXTENSIONS)],
         verbose_name="Видео",
