@@ -8,6 +8,7 @@ from apps.dms.api import router as dms_router
 from apps.consultation.api import router as consultation_router
 from apps.branch.api import router as branch_router
 from apps.vacancies.api import router as vacancies_router
+from apps.stories.api import router as stories_router
 
 api = NinjaAPI(
     title="API стоматологической клиники Алекса",
@@ -25,3 +26,4 @@ api.add_router("/dms", dms_router)
 api.add_router("/consultation", consultation_router)
 api.add_router("/branches", branch_router)
 api.add_router("/vacancies", vacancies_router)
+api.add_router("/stories", stories_router)

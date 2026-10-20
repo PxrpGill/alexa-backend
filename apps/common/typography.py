@@ -197,9 +197,9 @@ def typograph_html(html):
 TYPOGRAPH_SKIP_KEYS = frozenset({
     'slug', 'branch', 'url', 'page_url', 'src', 'mobile',
     'icon', 'image', 'photo', 'banner', 'poster', 'previewPoster',
-    'original', 'webp', 'avif',
+    'original', 'webp', 'avif', 'preview', 'source', 'posterSrc',
     'phone', 'patient_phone', 'email', 'resume', 'file',
-    'status',
+    'status', 'type',
 })
 
 _HTML_TAG_RE = re.compile(r'<[a-zA-Z/!]')

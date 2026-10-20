@@ -21,6 +21,12 @@ ENV PATH="/opt/venv/bin:$PATH" \
 
 COPY --from=builder /opt/venv /opt/venv
 
+# ffmpeg/ffprobe: транскод видео сторисов (Celery worker) и проверка длительности
+# при загрузке в админке (web). Оба сервиса собираются из этого образа.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 # Приложение работает от непривилегированного пользователя.
 # ВНИМАНИЕ: существующие тома static_volume/media_volume принадлежат root —
 # после первого деплоя этого образа нужен одноразовый chown, см. docs/deploy.md.
