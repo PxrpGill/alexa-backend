@@ -110,6 +110,10 @@ never sent to the chat (protected personal data) — only an "attached / none" m
 - Media is processed by `apps/stories/tasks.py` (queued `on_commit` when the file changes), not by
   `ImageVariantsMixin`: images get webp/avif plus a 750px `-m` mobile copy; videos are transcoded by
   ffmpeg (`apps/stories/media.py`) into 1080p/720p H.264+AAC faststart mp4 + a webp poster.
+- Images are decoded once and downscaled to 1080px **before** webp/avif encoding (full-res AVIF of
+  an upscaled 4320×7680 PNG took ~900 MB and got the worker OOM-killed); uploads over 40 MP are
+  rejected. Prod worker runs `--concurrency=2`. A killed task flips the item to `error` via a
+  `task_failure` receiver; items stuck in `processing` past `STALE_PROCESSING_AFTER` are flagged in admin.
 - Only `processing_status=ready` items are served; groups without them are hidden. Processing fields
   are written by the task via `.update()` only — a `save()` without a media change skips them.
 - ffmpeg/ffprobe are in both Docker images and CI (`StoryItem.clean()` probes upload duration);

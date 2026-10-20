@@ -1,6 +1,9 @@
 import logging
 
+from billiard.exceptions import WorkerLostError
 from celery import shared_task
+from celery.signals import task_failure
+from django.utils import timezone
 
 from .media import process_story_image, transcode_story_video
 
@@ -36,7 +39,10 @@ def process_story_item_task(pk):
     current = StoryItem.objects.filter(
         pk=pk, type=item.type, image=item.image.name, video=item.video.name,
     )
-    current.update(processing_status=StoryItem.ProcessingStatus.PROCESSING)
+    current.update(
+        processing_status=StoryItem.ProcessingStatus.PROCESSING,
+        processing_started_at=timezone.now(),
+    )
 
     try:
         if item.type == StoryItem.Type.IMAGE:
@@ -54,3 +60,29 @@ def process_story_item_task(pk):
 
     if current.update(processing_status=StoryItem.ProcessingStatus.READY, **result):
         touch_group(item.group_id)
+
+
+@task_failure.connect
+def mark_lost_story_item(sender=None, exception=None, args=None, **kwargs):
+    """Кадр, чей процесс убили посреди обработки, перевести в ERROR.
+
+    Ошибки обработки задача ловит сама, сюда доходит гибель процесса
+    (WorkerLostError — обычно ядро убило его по нехватке памяти). Сигнал шлёт
+    главный процесс worker'а, без этого кадр навсегда остался бы в PROCESSING.
+    Если умирает весь worker (перезапуск при деплое), сигнала нет — такой кадр
+    помечается в админке по STALE_PROCESSING_AFTER.
+    """
+    if getattr(sender, 'name', None) != process_story_item_task.name or not args:
+        return
+    from .models import StoryItem
+
+    if isinstance(exception, WorkerLostError):
+        message = (
+            'Процесс обработки был убит — скорее всего, на сервере не хватило '
+            'памяти. Перезапустите обработку; если повторится, уменьшите файл.'
+        )
+    else:
+        message = f'Обработка прервана: {exception!r}'[:1000]
+    StoryItem.objects.filter(
+        pk=args[0], processing_status=StoryItem.ProcessingStatus.PROCESSING,
+    ).update(processing_status=StoryItem.ProcessingStatus.ERROR, processing_error=message)

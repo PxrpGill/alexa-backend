@@ -176,6 +176,15 @@ X-Accel-Redirect в проде и `FileResponse` в dev (`USE_X_ACCEL_REDIRECT`)
 Файлы сторисов получают случайное имя (`UniqueUploadTo`): варианты строятся от имени без
 расширения, и `photo.png` с `photo.jpg` иначе делили бы один `photo.webp`.
 
+Память: картинка декодируется один раз и **до кодирования** уменьшается до 1080 px —
+AVIF в исходном разрешении (апскейл 4320×7680) брал ~900 МБ на процесс, и ядро убивало
+worker по OOM. При загрузке больше 40 Мп не пускается (`validate_image_pixels`). Worker в
+проде — `--concurrency=2`, ffmpeg — `-threads 2`, AVIF — `max_threads=1`. Общий
+`generate_image_variants` для сторисов не используется именно поэтому.
+Если процесс всё же убит, `task_failure`-receiver в `tasks.py` переводит кадр в `error`;
+если умер весь worker (деплой), кадр в `processing` дольше `STALE_PROCESSING_AFTER`
+помечается в инлайне как прерванный.
+
 У кадра `processing_status` (pending → processing → ready | error); `GET /stories` отдаёт
 только `ready`-кадры, группы без них не попадают в ответ. Поля обработки пишет только
 задача через `.update()`, поэтому `save()` без смены медиа их не трогает (`PROCESSING_FIELDS`).
