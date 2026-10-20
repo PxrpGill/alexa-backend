@@ -25,6 +25,7 @@ class APISmokeTest(TestCase):
         '/api/v1/vacancies/{slug}',
         '/api/v1/vacancies/apply',
         '/api/v1/vacancies/{slug}/apply',
+        '/api/v1/stories',
     ]
 
     # Публичные формы должны быть под rate limit (apps/common/throttling.py).

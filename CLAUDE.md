@@ -59,6 +59,7 @@ docker-compose -f docker/dev/docker-compose.yml exec web \
 | `dms` | `DMS` — заявки ДМС | `POST /dms` |
 | `consultation` | `Consultation` | `POST /consultation` |
 | `vacancies` | `VacancyCategory`, `Vacancy` + 5 inline-моделей, `Application`, `validators.py` | `GET /vacancies`, `/vacancies/{slug}`, `POST /vacancies/apply`, `/vacancies/{slug}/apply` |
+| `stories` | `StoryGroup`, `StoryItem` (inline), `media.py` (ffmpeg), `tasks.py` | `GET /stories` |
 
 Каждое приложение содержит `models.py`, `admin.py`, `api.py`, `schemas.py`
 (в `branch` файл называется `schema.py`), опционально `tests.py`.
@@ -164,6 +165,28 @@ X-Accel-Redirect в проде и `FileResponse` в dev (`USE_X_ACCEL_REDIRECT`)
 В админке вместо файлового поля — колонка-ссылка `resume_link`.
 Новые приватные файлы подключать так же, а не через публичный `/media/`.
 
+### Сторисы
+Лента на главной: `StoryGroup` (кружок) → `StoryItem` (кадр, `type` = `image` | `video`).
+Медиа обрабатывает **не** `ImageVariantsMixin`, а свои задачи `apps/stories/tasks.py`,
+поставленные `on_commit` при смене файла: картинка → webp/avif + мобильная копия до
+750 px рядом с оригиналом (`<имя>-m.<ext>`, отдаётся как `mobile` в `PictureFormatSchema`);
+видео → ffmpeg (`apps/stories/media.py`): H.264/AAC mp4 с faststart в рамке 1080×1920 и
+720×1280 (по ориентации, без апскейла) + постер первого кадра в webp, имена — в
+`video_src`/`video_mobile`/`video_poster`.
+
+У кадра `processing_status` (pending → processing → ready | error); `GET /stories` отдаёт
+только `ready`-кадры, группы без них не попадают в ответ. Поля обработки пишет только
+задача через `.update()`, поэтому `save()` без смены медиа их не трогает (`PROCESSING_FIELDS`).
+Задача кадра без автоповторов: ошибку видно в инлайне, перезапуск — action в списке групп.
+Любое изменение кадра и переход в `ready` сдвигают `StoryGroup.updated_at` — по нему фронтенд
+снова помечает группу непросмотренной.
+
+Ответ — camelCase с `exclude_none=True`, кадры — дискриминированный union по `type`.
+Длительность и размер видео проверяются в `StoryItem.clean()` через ffprobe
+(`MAX_STORY_VIDEO_SECONDS`, `MAX_STORY_VIDEO_SIZE`), поэтому ffmpeg стоит в обоих образах и
+в CI; тест транскода пропускается без ffmpeg. Под 100-мегабайтные загрузки у `/admin/` в nginx
+`client_max_body_size 110M`. Сортировка перетаскиванием — `django-admin-sortable2`.
+
 ### Типографика
 Вся русская типографика применяется **на отдаче**, а не в `save()`: в БД и админке
 лежит исходный текст редактора, фронтенд всегда получает обработанный. Точка входа —
@@ -179,7 +202,8 @@ HTML-контенте: фронтенд вставляет такие строк
 
 Служебные ключи перечислены в `TYPOGRAPH_SKIP_KEYS` (`apps/common/typography.py`) —
 `slug`, `branch`, ссылки, `src`/`mobile`/`icon` и ключи-картинки (отсекают поддерево
-`PictureFormatSchema` целиком), телефоны, email, `resume`, `status`. **Новое служебное
+`PictureFormatSchema` целиком), телефоны, email, `resume`, `status`, `type`, медиа сторисов
+(`preview`, `source`, `posterSrc`). **Новое служебное
 поле в ответе → добавить ключ туда**, иначе оно будет типографировано. Новые
 контентные поля и новые роуты покрываются автоматически, отдельных `resolve_*` не нужно.
 
