@@ -68,7 +68,11 @@ services:
   worker:
     image: ${DOCKER_IMAGE}
     restart: always
-    command: celery -A config worker -l info
+    # Обработка медиа сторисов (AVIF, ffmpeg) тяжёлая по памяти: процесс на
+    # каждое ядро ронял worker по OOM. stop_grace_period — дать идущему
+    # транскоду доработать при деплое, а не убивать его через 10 с.
+    command: celery -A config worker -l info --concurrency=2
+    stop_grace_period: 2m
     env_file: .env.prod
     environment:
       DB_HOST: db

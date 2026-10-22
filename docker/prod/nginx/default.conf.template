@@ -86,6 +86,12 @@ server {
         add_header X-Content-Type-Options nosniff always;
     }
 
+    # Видео сторисов грузятся через админку — до MAX_STORY_VIDEO_SIZE (100 МБ).
+    location /admin/ {
+        client_max_body_size 110M;
+        include /etc/nginx/conf.d/proxy_to_web.inc;
+    }
+
     location = /admin/login/ {
         limit_req zone=admin_login burst=5 nodelay;
         include /etc/nginx/conf.d/proxy_to_web.inc;

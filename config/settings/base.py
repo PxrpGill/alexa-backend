@@ -27,6 +27,7 @@ THIRD_PARTY_APPS = [
     "corsheaders",
     "django_ckeditor_5",
     "nested_admin",
+    "adminsortable2",
 ]
 
 LOCAL_APPS = [
@@ -40,6 +41,7 @@ LOCAL_APPS = [
     "apps.consultation",
     "apps.branch",
     "apps.vacancies",
+    "apps.stories",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -114,6 +116,10 @@ MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 MAX_RESUME_SIZE = config("MAX_RESUME_SIZE", default=5 * 1024 * 1024, cast=int)
+# Лимиты загрузки видео сторисов. Размер тела запроса к /admin/ в nginx
+# (client_max_body_size) должен быть не меньше MAX_STORY_VIDEO_SIZE.
+MAX_STORY_VIDEO_SIZE = config("MAX_STORY_VIDEO_SIZE", default=100 * 1024 * 1024, cast=int)
+MAX_STORY_VIDEO_SECONDS = 60
 
 CACHES = {
     "default": {
@@ -262,6 +268,7 @@ JAZZMIN_SETTINGS = {
         "vacancies.vacancycategory": "fas fa-layer-group",
         "vacancies.vacancy": "fas fa-briefcase",
         "vacancies.application": "fas fa-file-signature",
+        "stories.storygroup": "fas fa-play-circle",
     },
     "order_with_respect_to": [
         "users",
@@ -270,6 +277,7 @@ JAZZMIN_SETTINGS = {
         "promotions",
         "appointments",
         "vacancies",
+        "stories",
     ],
     # Related-попапы открываются модалкой, а не отдельным окном.
     "related_modal_active": True,

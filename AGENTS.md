@@ -96,12 +96,28 @@ never sent to the chat (protected personal data) — only an "attached / none" m
   the whole response via `typograph_data()` (`apps/common/typography.py`). HTML values go through
   `typograph_html()` (also strips `style`), plain strings through `typograph_text(html_entities=True)`,
   so every field ships HTML entities (`&nbsp;`, `&mdash;`). Service keys live in `TYPOGRAPH_SKIP_KEYS`
-  (slug, links, image subtrees, phones, email, `status`) — add new service keys there. `openapi.json`
+  (slug, links, image subtrees, phones, email, `status`, `type`, story media keys) — add new service keys there. `openapi.json`
   bypasses the renderer. Models store the editor's original text.
 - Blog list endpoint uses custom pagination: query params `page`, `perPage`, `allPages`; response is `PaginatedBlogPostSchema` (`items` + `pagination`), not a plain list.
 - Promotions date filtering uses `timezone.localdate()`; `ends_at__isnull=True` means "ongoing".
 - Git workflow: feature branches `feat/*` → PR → merge to `main` triggers CI deploy (GHCR image + SSH to VPS). Commit messages in Russian.
 - `apps/vacancies/` is fully implemented (vacancy tree + applications with resume upload, own `validators.py` and IP throttling); `apps/dms/tests.py` and `apps/consultation/tests.py` now cover MAX notifications.
+
+## Stories (`apps/stories`)
+
+- `StoryGroup` (feed circle) → `StoryItem` inline (`type` image|video). `GET /api/v1/stories` returns
+  camelCase with `exclude_none=True`; items are a discriminated union on `type`.
+- Media is processed by `apps/stories/tasks.py` (queued `on_commit` when the file changes), not by
+  `ImageVariantsMixin`: images get webp/avif plus a 750px `-m` mobile copy; videos are transcoded by
+  ffmpeg (`apps/stories/media.py`) into 1080p/720p H.264+AAC faststart mp4 + a webp poster.
+- Images are decoded once and downscaled to 1080px **before** webp/avif encoding (full-res AVIF of
+  an upscaled 4320×7680 PNG took ~900 MB and got the worker OOM-killed); uploads over 40 MP are
+  rejected. Prod worker runs `--concurrency=2`. A killed task flips the item to `error` via a
+  `task_failure` receiver; items stuck in `processing` past `STALE_PROCESSING_AFTER` are flagged in admin.
+- Only `processing_status=ready` items are served; groups without them are hidden. Processing fields
+  are written by the task via `.update()` only — a `save()` without a media change skips them.
+- ffmpeg/ffprobe are in both Docker images and CI (`StoryItem.clean()` probes upload duration);
+  nginx allows 110M on `/admin/`. Drag-n-drop ordering comes from `django-admin-sortable2`.
 
 ## Stale references (do NOT trust)
 
