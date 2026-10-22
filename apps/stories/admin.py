@@ -5,7 +5,12 @@ from django.db.models import Count
 from django.utils import timezone
 from django.utils.html import format_html
 
-from .models import StoryGroup, StoryItem, enqueue_media_processing
+from .models import (
+    STALE_PROCESSING_AFTER,
+    StoryGroup,
+    StoryItem,
+    enqueue_media_processing,
+)
 
 _STATUS_COLORS = {
     StoryItem.ProcessingStatus.PENDING: "#6c757d",
@@ -55,6 +60,13 @@ class StoryItemInline(SortableStackedInline):
             _STATUS_COLORS[obj.processing_status],
             obj.get_processing_status_display(),
         )
+        if obj.is_processing_stale:
+            return format_html(
+                "{}<br><small>Обработка идёт дольше {} мин — вероятно, прервалась. "
+                "Перезапустите её действием в списке групп.</small>",
+                label,
+                int(STALE_PROCESSING_AFTER.total_seconds() // 60),
+            )
         if obj.processing_status == StoryItem.ProcessingStatus.ERROR:
             return format_html(
                 "{}<br><small>{}</small>", label, obj.processing_error[:300]
@@ -124,7 +136,9 @@ class StoryGroupAdmin(SortableAdminMixin, admin.ModelAdmin):
         )
         pks = list(items.values_list("pk", flat=True))
         items.update(
-            processing_status=StoryItem.ProcessingStatus.PENDING, processing_error=""
+            processing_status=StoryItem.ProcessingStatus.PENDING,
+            processing_error="",
+            processing_started_at=None,
         )
         for pk in pks:
             transaction.on_commit(lambda pk=pk: enqueue_media_processing("item", pk))

@@ -12,8 +12,12 @@ from django.test import Client, TestCase, override_settings
 from django.utils import timezone
 
 from apps.common.test_utils import make_test_image
+from billiard.exceptions import WorkerLostError
+from celery.signals import task_failure
+
 from apps.stories.media import MediaProcessingError
-from apps.stories.models import StoryGroup, StoryItem
+from apps.stories.models import STALE_PROCESSING_AFTER, StoryGroup, StoryItem
+from apps.stories.tasks import process_story_item_task, process_story_preview_task
 from apps.users.models import User
 
 HAS_FFMPEG = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
@@ -116,6 +120,42 @@ class StoryImageProcessingTest(StoriesTestCase):
         self.assertNotEqual(
             os.path.splitext(png.image.name)[0], os.path.splitext(jpg.image.name)[0]
         )
+
+    def test_large_image_is_downscaled_before_encoding(self):
+        # Кодирование AVIF в исходном разрешении убивало worker по памяти.
+        from PIL import Image
+
+        group = self.make_group()
+        with self.captureOnCommitCallbacks(execute=True):
+            item = StoryItem.objects.create(
+                group=group,
+                image=make_test_image("big.png", img_format="PNG", size=(3240, 5760)),
+            )
+        item.refresh_from_db()
+        self.assertEqual(item.processing_status, READY)
+
+        storage = item.image.storage
+        base, ext = os.path.splitext(item.image.name)
+        expected = {
+            f"{base}.webp": (1080, 1920),
+            f"{base}.avif": (1080, 1920),
+            f"{base}-m{ext}": (750, 1333),
+            f"{base}-m.webp": (750, 1333),
+            f"{base}-m.avif": (750, 1333),
+        }
+        for name, size in expected.items():
+            with storage.open(name) as fh:
+                self.assertEqual(Image.open(fh).size, size, name)
+
+    def test_too_many_pixels_rejected_on_upload(self):
+        group = self.make_group()
+        with patch("apps.stories.media.MAX_IMAGE_PIXELS", 100 * 100):
+            item = StoryItem(group=group, image=make_test_image(size=(101, 100)))
+            with self.assertRaises(ValidationError) as ctx:
+                item.full_clean()
+            self.assertIn("101×100", str(ctx.exception.message_dict["image"]))
+
+            StoryItem(group=group, image=make_test_image(size=(100, 100))).full_clean()
 
     def test_mobile_copy_is_downscaled_to_750(self):
         from PIL import Image
@@ -434,3 +474,65 @@ class StoryAdminTest(StoriesTestCase):
     def test_add_form_renders(self):
         response = self.client.get("/admin/stories/storygroup/add/")
         self.assertEqual(response.status_code, 200)
+
+
+class StoryLostProcessingTest(StoriesTestCase):
+    def make_processing_item(self, started_ago=timedelta(0)):
+        with patch("apps.stories.tasks.process_story_item_task.delay"):
+            with self.captureOnCommitCallbacks(execute=True):
+                item = StoryItem.objects.create(
+                    group=self.make_group(), image=make_test_image("frame.jpg")
+                )
+        StoryItem.objects.filter(pk=item.pk).update(
+            processing_status=StoryItem.ProcessingStatus.PROCESSING,
+            processing_started_at=timezone.now() - started_ago,
+        )
+        return item
+
+    def send_failure(self, sender, item, exception):
+        task_failure.send(
+            sender=sender, task_id="t", exception=exception,
+            args=(item.pk,), kwargs={}, traceback=None, einfo=None,
+        )
+
+    def test_worker_lost_marks_item_error(self):
+        item = self.make_processing_item()
+        self.send_failure(
+            process_story_item_task, item, WorkerLostError("signal 9 (SIGKILL)")
+        )
+        item.refresh_from_db()
+        self.assertEqual(item.processing_status, StoryItem.ProcessingStatus.ERROR)
+        self.assertIn("не хватило памяти", item.processing_error)
+
+    def test_failure_of_other_task_is_ignored(self):
+        item = self.make_processing_item()
+        self.send_failure(process_story_preview_task, item, WorkerLostError())
+        item.refresh_from_db()
+        self.assertEqual(item.processing_status, StoryItem.ProcessingStatus.PROCESSING)
+
+    def test_stale_processing_is_flagged(self):
+        fresh = self.make_processing_item()
+        stale = self.make_processing_item(STALE_PROCESSING_AFTER + timedelta(minutes=1))
+        fresh.refresh_from_db()
+        stale.refresh_from_db()
+        self.assertFalse(fresh.is_processing_stale)
+        self.assertTrue(stale.is_processing_stale)
+
+        admin = User.objects.create_superuser("admin", "admin@example.com", "pass")
+        self.client.force_login(admin)
+        response = self.client.get(
+            f"/admin/stories/storygroup/{stale.group_id}/change/"
+        )
+        self.assertContains(response, "вероятно, прервалась")
+
+    def test_reprocess_action_requeues_stuck_items(self):
+        item = self.make_processing_item(STALE_PROCESSING_AFTER + timedelta(minutes=1))
+        admin = User.objects.create_superuser("admin", "admin@example.com", "pass")
+        self.client.force_login(admin)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(
+                "/admin/stories/storygroup/",
+                {"action": "reprocess_media", "_selected_action": [item.group_id]},
+            )
+        item.refresh_from_db()
+        self.assertEqual(item.processing_status, READY)

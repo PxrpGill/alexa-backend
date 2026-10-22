@@ -16,10 +16,14 @@ from django.core.files import File
 from django.core.files.base import ContentFile
 from PIL import Image
 
-from apps.common.images import generate_image_variants
+from apps.common.images import AVIF_QUALITY, WEBP_QUALITY
 
 MOBILE_SUFFIX = '-m'
 MOBILE_MAX_WIDTH = 750
+FRAME_MAX_WIDTH = 1080
+# Больше не пускаем при загрузке: даже уменьшенная обработка сначала
+# декодирует картинку целиком (до 4 байт на пиксель).
+MAX_IMAGE_PIXELS = 40_000_000
 
 # (суффикс файла, рамка длинная×короткая сторона, видео-битрейт, maxrate, bufsize, аудио)
 VIDEO_PROFILES = {
@@ -30,6 +34,8 @@ POSTER_SUFFIX = '-poster'
 POSTER_QUALITY = 85
 
 FFMPEG_TIMEOUT = 15 * 60
+# libx264 по умолчанию берёт все ядра, и память растёт с числом потоков.
+FFMPEG_THREADS = 2
 FFPROBE_TIMEOUT = 30
 
 
@@ -68,34 +74,78 @@ def get_mobile_copy(field_file):
 
 
 def process_story_image(field_file):
-    """webp/avif оригинала + уменьшенная до MOBILE_MAX_WIDTH копия со своими webp/avif."""
-    generate_image_variants(field_file)
-    mobile = _generate_mobile_copy(field_file)
-    generate_image_variants(mobile)
+    """webp/avif картинки и её мобильной копии (до MOBILE_MAX_WIDTH) со своими webp/avif.
 
-
-def _generate_mobile_copy(field_file):
+    Исходник открывается один раз и сразу уменьшается до FRAME_MAX_WIDTH, все
+    варианты кодируются уже из уменьшенной копии. Кодирование AVIF в исходном
+    разрешении (после апскейла это 4000+ px) съедало сотни МБ на процесс, и
+    на проде ядро убивало worker по нехватке памяти.
+    """
     storage = field_file.storage
-    name = mobile_copy_name(field_file.name)
+    base, _ext = os.path.splitext(field_file.name)
 
     with storage.open(field_file.name, 'rb') as source:
         image = Image.open(source)
+        image_format = image.format or 'JPEG'
         image.load()
-    image_format = image.format or 'JPEG'
 
-    if image.width > MOBILE_MAX_WIDTH:
-        height = round(image.height * MOBILE_MAX_WIDTH / image.width)
-        image = image.resize((MOBILE_MAX_WIDTH, height), Image.LANCZOS)
-    if image_format == 'JPEG' and image.mode != 'RGB':
+    if image.mode in ('RGBA', 'LA') or (image.mode == 'P' and 'transparency' in image.info):
+        image = image.convert('RGBA')
+    elif image.mode != 'RGB':
         image = image.convert('RGB')
 
+    frame = _fit_width(image, FRAME_MAX_WIDTH)
+    del image
+    _save_variants(storage, base, frame)
+
+    mobile = _fit_width(frame, MOBILE_MAX_WIDTH)
+    _save_image(storage, mobile_copy_name(field_file.name), mobile, image_format, quality=90)
+    _save_variants(storage, f'{base}{MOBILE_SUFFIX}', mobile)
+
+
+def validate_image_pixels(file):
+    """Отклонить картинку больше MAX_IMAGE_PIXELS (читается только заголовок)."""
+    from django.core.exceptions import ValidationError
+
+    position = file.tell() if hasattr(file, 'tell') else None
+    try:
+        with Image.open(file) as image:
+            width, height = image.size
+    except Exception:
+        return  # битый файл и так отвергнет ImageField
+    finally:
+        if position is not None:
+            file.seek(position)
+    if width * height > MAX_IMAGE_PIXELS:
+        raise ValidationError(
+            f'Картинка слишком большая: {width}×{height}. '
+            f'Уменьшите до {FRAME_MAX_WIDTH}×1920 и загрузите снова.'
+        )
+
+
+def _fit_width(image, max_width):
+    if image.width <= max_width:
+        return image
+    height = round(image.height * max_width / image.width)
+    return image.resize((max_width, height), Image.LANCZOS, reducing_gap=3.0)
+
+
+def _save_variants(storage, base, image):
+    _save_image(storage, f'{base}.webp', image, 'WEBP', quality=WEBP_QUALITY)
+    # Один поток кодировщика: параллельность и так даёт concurrency worker'а,
+    # а каждый поток libaom держит свои буферы.
+    _save_image(storage, f'{base}.avif', image, 'AVIF', quality=AVIF_QUALITY, max_threads=1)
+
+
+def _save_image(storage, name, image, image_format, **params):
+    if image_format == 'JPEG' and image.mode != 'RGB':
+        image = image.convert('RGB')
     buffer = BytesIO()
-    image.save(buffer, format=image_format, quality=90)
+    image.save(buffer, format=image_format, **params)
     buffer.seek(0)
     if storage.exists(name):
         storage.delete(name)
     storage.save(name, ContentFile(buffer.read()))
-    return StoredFile(storage, name)
 
 
 def probe_duration(path):
@@ -193,6 +243,7 @@ def _transcode_command(source, out, long_side, short_side, bitrate, maxrate, buf
         '-map', '0:v:0', '-map', '0:a:0?',
         '-vf', _scale_filter(long_side, short_side),
         '-c:v', 'libx264', '-preset', 'veryfast', '-profile:v', 'high',
+        '-threads', str(FFMPEG_THREADS),
         '-pix_fmt', 'yuv420p',
         '-b:v', bitrate, '-maxrate', maxrate, '-bufsize', bufsize,
         '-c:a', 'aac', '-b:a', audio, '-ac', '2',

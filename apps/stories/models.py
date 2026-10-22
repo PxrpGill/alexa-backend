@@ -1,6 +1,7 @@
 import logging
 import os
 import uuid
+from datetime import timedelta
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -13,7 +14,7 @@ from django.db import models, transaction
 from django.utils import timezone
 from django.utils.deconstruct import deconstructible
 
-from .media import MediaProcessingError, probe_uploaded_duration
+from .media import MediaProcessingError, probe_uploaded_duration, validate_image_pixels
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +22,12 @@ VIDEO_EXTENSIONS = ['mp4', 'mov', 'webm']
 MIN_IMAGE_DURATION_MS = 2000
 MAX_IMAGE_DURATION_MS = 30000
 PROCESSING_FIELDS = frozenset({
-    "processing_status", "processing_error", "video_src", "video_mobile", "video_poster",
+    "processing_status", "processing_error", "processing_started_at",
+    "video_src", "video_mobile", "video_poster",
 })
+# Дольше обработка не идёт даже у минутного видео. Кадр, висящий в PROCESSING
+# дольше, почти наверняка потерян: worker перезапустили посреди задачи.
+STALE_PROCESSING_AFTER = timedelta(minutes=30)
 
 
 @deconstructible
@@ -53,6 +58,7 @@ class StoryGroup(models.Model):
     )
     preview = models.ImageField(
         upload_to=UniqueUploadTo("stories/previews/"),
+        validators=[validate_image_pixels],
         verbose_name="Обложка",
         help_text="Квадрат, от 300×300",
     )
@@ -126,6 +132,7 @@ class StoryItem(models.Model):
     )
     image = models.ImageField(
         upload_to=UniqueUploadTo("stories/images/"),
+        validators=[validate_image_pixels],
         blank=True,
         verbose_name="Картинка",
         help_text="Вертикальный кадр 9:16, от 1080×1920",
@@ -162,6 +169,9 @@ class StoryItem(models.Model):
     )
     processing_error = models.TextField(
         blank=True, editable=False, verbose_name="Ошибка обработки"
+    )
+    processing_started_at = models.DateTimeField(
+        null=True, editable=False, verbose_name="Начало обработки"
     )
     video_src = models.FileField(
         max_length=255, blank=True, editable=False, verbose_name="Видео 1080p"
@@ -225,6 +235,7 @@ class StoryItem(models.Model):
         if media_changed:
             self.processing_status = self.ProcessingStatus.PENDING
             self.processing_error = ""
+            self.processing_started_at = None
             self.video_src = self.video_mobile = self.video_poster = ""
         elif kwargs.get("update_fields") is None:
             # Поля обработки пишет только задача (через .update()). Экземпляр,
@@ -239,6 +250,14 @@ class StoryItem(models.Model):
         if media_changed:
             pk = self.pk
             transaction.on_commit(lambda: enqueue_media_processing("item", pk))
+
+    @property
+    def is_processing_stale(self):
+        return (
+            self.processing_status == self.ProcessingStatus.PROCESSING
+            and self.processing_started_at is not None
+            and timezone.now() - self.processing_started_at > STALE_PROCESSING_AFTER
+        )
 
     def delete(self, *args, **kwargs):
         group_id = self.group_id
