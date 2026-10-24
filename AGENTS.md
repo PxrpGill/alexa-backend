@@ -86,7 +86,7 @@ never sent to the chat (protected personal data) — only an "attached / none" m
   (staff-only, X-Accel-Redirect); `/media/vacancies/resumes/` is `internal` in nginx.
 - `docker/prod/nginx/default.conf.template` is an envsubst template: `${DOMAIN}` comes
   from `.env.prod` at container start (`NGINX_ENVSUBST_FILTER=DOMAIN`), so config edits
-  ship with a normal deploy. JSON is gzipped (`gzip_types application/json`) — the frontend runs on Vercel (US) and uncompressed responses over ~16 KB stalled on the RU→US path; keep it on. Only `${DOMAIN}` is substituted — nginx's own `$host`,
+  ship with a normal deploy — it re-runs `/docker-entrypoint.d/20-envsubst-on-templates.sh` before `nginx -t && nginx -s reload`; a bare reload would keep the old rendered config, since `up -d` does not recreate the nginx container. JSON is gzipped (`gzip_types application/json`) — the frontend runs on Vercel (US) and uncompressed responses over ~16 KB stalled on the RU→US path; keep it on. Only `${DOMAIN}` is substituted — nginx's own `$host`,
   `$binary_remote_addr` etc. survive.
 
 ## Gotchas
