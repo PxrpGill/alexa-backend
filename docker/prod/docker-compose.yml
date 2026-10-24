@@ -42,6 +42,10 @@ services:
       - config.wsgi:application
       - --bind=0.0.0.0:8000
       - --workers=3
+      # Sync-воркер держит один запрос: при ревалидации ISR запросы фронтенда
+      # вставали в очередь и падали по таймауту. Потоки дают 12 одновременных.
+      - --worker-class=gthread
+      - --threads=4
       - --timeout=60
       - --graceful-timeout=30
       - --access-logfile=-

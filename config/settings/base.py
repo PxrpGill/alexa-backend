@@ -86,6 +86,10 @@ DATABASES = {
         "PASSWORD": config("DB_PASSWORD", default="alexa"),
         "HOST": config("DB_HOST", default="localhost"),
         "PORT": config("DB_PORT", default="5432"),
+        # Соединение живёт между запросами: ISR фронтенда раз в минуту бьёт
+        # пачкой GET-запросов, и открывать подключение на каждый — лишняя задержка.
+        "CONN_MAX_AGE": 60,
+        "CONN_HEALTH_CHECKS": True,
     }
 }
 
