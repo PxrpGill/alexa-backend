@@ -67,6 +67,16 @@ server {
 
     client_max_body_size 20M;
 
+    # Фронтенд на Vercel (США) ходит в API отсюда, из РФ: ответы крупнее ~16 КБ
+    # там зависали до таймаута, мелкие проходили. gzip ужимает JSON в 7–8 раз
+    # (детальная акция 20 КБ → 2,7 КБ, статья блога 36 КБ → 4,4 КБ).
+    # gzip_proxied any — ответы приходят из gunicorn через proxy_pass.
+    gzip on;
+    gzip_proxied any;
+    gzip_min_length 1000;
+    gzip_types application/json;
+    gzip_vary on;
+
     location /static/ {
         alias /app/staticfiles/;
         expires 30d;

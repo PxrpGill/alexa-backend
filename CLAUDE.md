@@ -225,7 +225,7 @@ HTML-контенте: фронтенд вставляет такие строк
 - Список блога — своя пагинация: query-параметры `page`, `perPage`, `allPages`, ответ `PaginatedBlogPostSchema` (`items` + `pagination`), а не плоский список.
 - Список вакансий: без `?category=` подставляется первая активная категория; в `categories` попадают только категории с опубликованными вакансиями; `total` — по всем категориям.
 - Акции фильтруются по `timezone.localdate()`, `ends_at__isnull=True` = бессрочная.
-- Прод-инфраструктура: `docker/prod/nginx/default.conf.template` — шаблон, домен подставляется из `DOMAIN` в `.env.prod` через envsubst образа nginx (`NGINX_ENVSUBST_FILTER=DOMAIN`, каталог монтируется в `/etc/nginx/templates`). Правки конфига едут обычным деплоем. Имя compose-проекта закреплено как `prod` — менять только с миграцией томов.
+- Прод-инфраструктура: `docker/prod/nginx/default.conf.template` — шаблон, домен подставляется из `DOMAIN` в `.env.prod` через envsubst образа nginx (`NGINX_ENVSUBST_FILTER=DOMAIN`, каталог монтируется в `/etc/nginx/templates`). Правки конфига едут обычным деплоем. JSON отдаётся с gzip (`gzip_types application/json`): фронтенд на Vercel в США, и ответы крупнее ~16 КБ без сжатия зависали на пути из РФ — не отключать. Имя compose-проекта закреплено как `prod` — менять только с миграцией томов.
 - `list`-endpoint'ы фильтруют публикуемость (`is_active` / `is_published` / `status=PUBLISHED`), detail на скрытой записи → 404.
 - `select_related` для FK, `prefetch_related` для M2M/inline, `.distinct()` при JOIN через M2M.
 - `BranchFilterMixin` / `apps/users/mixins.py` больше не существуют: admin по филиалам не ограничивается, `User.role` пока нигде не влияет на queryset.
