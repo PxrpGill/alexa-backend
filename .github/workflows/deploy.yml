@@ -132,8 +132,10 @@ jobs:
             export DOCKER_IMAGE=$(grep '^DOCKER_IMAGE=' docker/prod/.env.prod | cut -d= -f2-)
             export DOMAIN=$(grep '^DOMAIN=' docker/prod/.env.prod | cut -d= -f2-)
             DC -f docker/prod/docker-compose.yml pull web
+            # Миграции до перезапуска web: иначе новый код какое-то время отвечает
+            # 500 на ещё не созданных полях, и ISR фронтенда кэширует ошибку.
+            DC -f docker/prod/docker-compose.yml run --rm web python manage.py migrate --noinput
             DC -f docker/prod/docker-compose.yml up -d
-            DC -f docker/prod/docker-compose.yml exec -T web python manage.py migrate --noinput
             DC -f docker/prod/docker-compose.yml exec -T web python manage.py collectstatic --noinput
             # web пересоздан и получил новый IP в docker-сети — заставляем nginx
             # перечитать конфиг и заново отрезолвить upstream, иначе он отдаёт 502.

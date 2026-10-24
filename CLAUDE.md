@@ -243,7 +243,8 @@ HTML-контенте: фронтенд вставляет такие строк
 Ветки `feat/*` → PR → merge в `main`. Push в `main` запускает
 `.github/workflows/deploy.yml`: job `test` (postgres + redis services, `check --deploy`
 и `manage.py test` — красные тесты блокируют деплой) → сборка `docker/prod/Dockerfile`
-→ push в GHCR → SSH на VPS (`/opt/alexa-backend`) → `git pull`, `compose pull/up -d`,
-`migrate`, `collectstatic`, `nginx -s reload`.
-Прод-стек: postgres 16 · redis · gunicorn · celery worker · nginx + certbot.
+→ push в GHCR → SSH на VPS (`/opt/alexa-backend`) → `git pull`, `compose pull`,
+`migrate` через `run --rm` (до `up -d`, иначе новый код отвечает 500, а ISR фронтенда
+кэширует ошибку), `up -d`, `collectstatic`, `nginx -s reload`.
+Прод-стек: postgres 16 · redis · gunicorn (gthread, 3×4) · celery worker · nginx + certbot.
 Подробности — `docs/deploy.md`, `docs/docker.md`.

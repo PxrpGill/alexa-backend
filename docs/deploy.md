@@ -14,7 +14,7 @@ GitHub (main) ──push──▶ GitHub Actions
                            ▼
                        appleboy/ssh-action ──SSH──▶ VPS (/opt/alexa-backend)
                                                     │  git pull + docker-compose pull
-                                                    │  up -d + migrate + collectstatic
+                                                    │  migrate (run --rm) + up -d + collectstatic
                                                     ▼
                               docker-compose (docker/prod/docker-compose.yml)
                         db(postgres:16) · redis · web(gunicorn) · worker(celery)
@@ -310,7 +310,8 @@ docker-compose -f docker/prod/docker-compose.yml logs -f web
 1. Actions собирает образ из `docker/prod/Dockerfile` и пушит в GHCR
    (теги `latest` и `+sha`);
 2. По SSH на сервере: `git pull`, login в GHCR, `docker-compose pull web`,
-   `up -d`, `migrate`, `collectstatic`.
+   `migrate` (через `run --rm`, до перезапуска web — чтобы новый код не отвечал
+   500 на ещё не созданных полях), `up -d`, `collectstatic`.
 
 Следить: **Repo → Actions → «Build and Deploy»**.
 
