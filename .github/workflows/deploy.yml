@@ -139,6 +139,11 @@ jobs:
             DC -f docker/prod/docker-compose.yml exec -T web python manage.py collectstatic --noinput
             # web пересоздан и получил новый IP в docker-сети — заставляем nginx
             # перечитать конфиг и заново отрезолвить upstream, иначе он отдаёт 502.
-            DC -f docker/prod/docker-compose.yml exec -T nginx nginx -s reload
+            # Шаблоны из docker/prod/nginx рендерятся в conf.d только при старте
+            # контейнера, а up -d его не пересоздаёт (каталог примонтирован,
+            # compose-конфиг nginx не меняется). Поэтому сначала рендерим заново
+            # штатным скриптом образа, проверяем и только потом перечитываем.
+            DC -f docker/prod/docker-compose.yml exec -T nginx sh -c \
+              '/docker-entrypoint.d/20-envsubst-on-templates.sh && nginx -t && nginx -s reload'
             DC -f docker/prod/docker-compose.yml ps
             docker image prune -f

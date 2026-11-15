@@ -225,7 +225,7 @@ HTML-контенте: фронтенд вставляет такие строк
 - Список блога — своя пагинация: query-параметры `page`, `perPage`, `allPages`, ответ `PaginatedBlogPostSchema` (`items` + `pagination`), а не плоский список.
 - Список вакансий: без `?category=` подставляется первая активная категория; в `categories` попадают только категории с опубликованными вакансиями; `total` — по всем категориям.
 - Акции фильтруются по `timezone.localdate()`, `ends_at__isnull=True` = бессрочная.
-- Прод-инфраструктура: `docker/prod/nginx/default.conf.template` — шаблон, домен подставляется из `DOMAIN` в `.env.prod` через envsubst образа nginx (`NGINX_ENVSUBST_FILTER=DOMAIN`, каталог монтируется в `/etc/nginx/templates`). Правки конфига едут обычным деплоем. JSON отдаётся с gzip (`gzip_types application/json`): фронтенд на Vercel в США, и ответы крупнее ~16 КБ без сжатия зависали на пути из РФ — не отключать. Имя compose-проекта закреплено как `prod` — менять только с миграцией томов.
+- Прод-инфраструктура: `docker/prod/nginx/default.conf.template` — шаблон, домен подставляется из `DOMAIN` в `.env.prod` через envsubst образа nginx (`NGINX_ENVSUBST_FILTER=DOMAIN`, каталог монтируется в `/etc/nginx/templates`). Правки конфига едут обычным деплоем: он перерендеривает шаблоны штатным `/docker-entrypoint.d/20-envsubst-on-templates.sh` и делает `nginx -t && nginx -s reload` — один `reload` их не подхватит, потому что `up -d` не пересоздаёт контейнер nginx. JSON отдаётся с gzip (`gzip_types application/json`): фронтенд на Vercel в США, и ответы крупнее ~16 КБ без сжатия зависали на пути из РФ — не отключать. Имя compose-проекта закреплено как `prod` — менять только с миграцией томов.
 - `list`-endpoint'ы фильтруют публикуемость (`is_active` / `is_published` / `status=PUBLISHED`), detail на скрытой записи → 404.
 - `select_related` для FK, `prefetch_related` для M2M/inline, `.distinct()` при JOIN через M2M.
 - `BranchFilterMixin` / `apps/users/mixins.py` больше не существуют: admin по филиалам не ограничивается, `User.role` пока нигде не влияет на queryset.
@@ -245,6 +245,6 @@ HTML-контенте: фронтенд вставляет такие строк
 и `manage.py test` — красные тесты блокируют деплой) → сборка `docker/prod/Dockerfile`
 → push в GHCR → SSH на VPS (`/opt/alexa-backend`) → `git pull`, `compose pull`,
 `migrate` через `run --rm` (до `up -d`, иначе новый код отвечает 500, а ISR фронтенда
-кэширует ошибку), `up -d`, `collectstatic`, `nginx -s reload`.
+кэширует ошибку), `up -d`, `collectstatic`, перерендер шаблонов nginx + `nginx -s reload`.
 Прод-стек: postgres 16 · redis · gunicorn (gthread, 3×4) · celery worker · nginx + certbot.
 Подробности — `docs/deploy.md`, `docs/docker.md`.
