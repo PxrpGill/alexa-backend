@@ -233,12 +233,17 @@ docker-compose -f docker/prod/docker-compose.yml exec nginx \
 cd /opt/alexa-backend
 docker-compose -f docker/prod/docker-compose.yml up -d db nginx
 
-docker-compose -f docker/prod/docker-compose.yml run --rm certbot certonly \
+docker-compose -f docker/prod/docker-compose.yml run --rm --entrypoint certbot certbot certonly \
   --webroot --webroot-path=/var/www/certbot \
   --email you@example.com \
   -d yourdomain.com -d www.yourdomain.com \
   --agree-tos --no-eff-email
 ```
+
+> `--entrypoint certbot` обязателен: у сервиса `certbot` свой `entrypoint`
+> (бесконечный цикл `certbot renew`), а `run` переопределяет только `command`.
+> Без флага команда `certonly ...` просто станет аргументами `sh -c`, отработает
+> цикл — и сертификат не выпустится, хотя команда «завершится успешно».
 
 **Шаг 3.** Раскомментируйте HTTPS-блок обратно в `nginx.conf`, затем поднимите весь стек
 (nginx пересоздастся уже с настоящими сертификатами):
@@ -380,15 +385,75 @@ docker-compose -f docker/prod/docker-compose.yml up -d web worker
 | `502 Bad Gateway` сразу после деплоя | nginx держит старый IP контейнера `web`. Лечится `exec nginx nginx -s reload` (CI делает это сам), навсегда — `resolver` + `proxy_pass` через переменную в nginx.conf. Проверьте, что на сервере лежит актуальный nginx.conf (см. §7.2) |
 | `502 Bad Gateway` в остальных случаях | упал gunicorn: `docker-compose logs web`; часто — упал Celery/Redis |
 | HTTPS с просроченным сертификатом | nginx не перечитал обновлённый certbot-ом сертификат. В compose у nginx есть цикл `nginx -s reload` раз в 6 часов — проверьте, что `command:` не потерян |
+| `ERR_CERT_DATE_INVALID` / Chrome ругается на HSTS и не предлагает «всё равно перейти» | сертификат действительно истёк — `certbot renew` не сработал (обновление идёт за 30 дней до конца, поэтому «само» это не лечится). См. блок «Сертификат истёк» ниже |
+| `ERR_CERT_COMMON_NAME_INVALID` только на `www.` | сертификат выпущен без имени `www`: переиздать `certonly ... --cert-name <домен> -d <домен> -d www.<домен> --expand` |
 | Внутри контейнера `default.conf` со `server_name localhost`, HTTPS не отвечает | шаблоны не отрендерились: `command` у nginx обязан запускать сервер через `exec /docker-entrypoint.sh nginx -g "daemon off;"` — штатный entrypoint выполняет envsubst только если его первый аргумент `nginx`. Срочно поднять: `exec nginx /docker-entrypoint.d/20-envsubst-on-templates.sh`, затем `nginx -t` и `nginx -s reload` |
 | Правка `docker/prod/nginx/*.template` задеплоена, но не действует | шаблоны рендерятся в `conf.d` только при старте контейнера, а `up -d` nginx не пересоздаёт; один `nginx -s reload` перечитывает старый конфиг. CI перерендеривает сам; вручную: `exec -T nginx sh -c '/docker-entrypoint.d/20-envsubst-on-templates.sh && nginx -t && nginx -s reload'` |
-| `required variable DOMAIN is missing a value` при ручном `docker compose` | интерполяция не видит `.env.prod` (он только `env_file`). Создайте `docker/prod/.env` из `.env.example` — compose читает его автоматически. Разово: `set -a; . docker/prod/.env.prod; set +a` |
+| `required variable DOMAIN is missing a value` при ручном `docker compose` | интерполяция не видит `.env.prod` (он только `env_file` для контейнеров, а `.env` для подстановки compose ищет в каталоге проекта — `docker/prod/`). Разово: `docker compose --env-file docker/prod/.env.prod -f docker/prod/docker-compose.yml ...` или `export DOMAIN=$(grep '^DOMAIN=' docker/prod/.env.prod \| cut -d= -f2-)` (+ то же для `DOCKER_IMAGE`). Навсегда — создать `docker/prod/.env` из `.env.example` |
 | `400 Bad Request` | `ALLOWED_HOSTS` не содержит домен в `.env.prod` |
 | SSL не выдаётся | DNS ещё не пропагировался; порт 80 закрыт файрволом; `YOUR_DOMAIN` остался в nginx.conf |
 | nginx не стартует после первого запуска | не выполнен bootstrap из шага 7.3 (нет сертификатов) |
 | `git pull` сбросил nginx.conf | пропал `skip-worktree` — выполнить команду из шага 7.2 снова |
 | `denied: requested access to the resource is denied` на GHCR | `GHCR_TOKEN` без scope `read:packages`, либо пакет приватный и токен не от владельца |
 | контейнеры падают с ошибкой БД | база ещё не поднялась на старте — добавьте `restart: always` (уже есть) и подождите |
+
+### Сертификат истёк (сайт не открывается из браузера)
+
+Chrome: `ERR_CERT_DATE_INVALID` + сообщение, что сайт «использует HSTS» и обойти
+предупреждение нельзя. Это не атака и не проблема Django: истёк сертификат
+Let's Encrypt, а `certbot renew` не отработал (обновление начинается за 30 дней до
+конца срока, то есть до последнего дня обычно не доходит). Проверять сайт до
+починки можно только без проверки цепочки: `curl -kI https://<домен>/`.
+
+```bash
+cd /opt/alexa-backend
+COMPOSE="docker-compose -f docker/prod/docker-compose.yml"
+
+$COMPOSE ps certbot                                        # контейнер жив?
+$COMPOSE logs --tail 200 certbot                           # что ответил ACME
+$COMPOSE exec nginx ls -l /etc/letsencrypt/live/<домен>/    # те же файлы, что у certbot
+
+# 1. Обновление (для уже истёкшего сертификата срабатывает сразу)
+$COMPOSE run --rm --entrypoint certbot certbot renew --cert-name <домен>
+
+# 2. Перечитать сертификат без простоя
+$COMPOSE exec nginx nginx -t && $COMPOSE exec nginx nginx -s reload
+
+# 3. Убедиться, что отдаётся новый
+openssl s_client -connect <домен>:443 -servername <домен> </dev/null 2>/dev/null \
+  | openssl x509 -noout -dates -subject
+```
+
+Типичные причины отказа `renew`:
+
+- `Timeout during connect` / `Connection refused` — порт 80 закрыт снаружи (UFW,
+  провайдер). Проверить с другой машины:
+  `curl -I http://<домен>/.well-known/acme-challenge/test` (404 — нормально,
+  главное не таймаут и не 301).
+- `too many certificates already issued` — лимит Let's Encrypt (5 одинаковых
+  сертификатов в неделю). Не гонять `--force-renewal` по кругу.
+- `Some challenges have failed` при доступном 80-м порту — nginx отдаёт не тот
+  конфиг: `$COMPOSE exec nginx nginx -T | grep -A2 acme-challenge`.
+- контейнер `certbot` в статусе `Exited` — `$COMPOSE up -d certbot`, затем шаг 1.
+- `Certbot failed to authenticate ... (authenticator: standalone)` + `Invalid
+  response ... 404` — сертификат когда-то выпустили режимом `standalone`, и
+  `renew` пытается поднять свой веб-сервер на 80-м порту **внутри** контейнера,
+  где порт не проброшен, а на хосте его уже занял nginx. ACME стучится в nginx и
+  получает 404. Контейнер при этом «жив» (`restarts=0`, `exit=0`) — отказ тихий.
+  Лечение: перевыпустить через webroot (nginx уже отдаёт `/var/www/certbot`):
+
+  ```bash
+  $COMPOSE run --rm --entrypoint certbot certbot certonly \
+    --webroot -w /var/www/certbot \
+    --cert-name <домен> -d <домен> -d www.<домен> \
+    --expand --non-interactive --agree-tos --force-renewal
+  $COMPOSE exec nginx nginx -s reload
+  $COMPOSE run --rm --entrypoint certbot certbot renew --dry-run
+  ```
+
+  `certonly` перезапишет `/etc/letsencrypt/renewal/<домен>.conf` на `webroot`,
+  и дальше фоновый `certbot renew` будет работать. Проверить конфиг:
+  `$COMPOSE exec certbot cat /etc/letsencrypt/renewal/<домен>.conf`.
 
 ---
 
@@ -402,6 +467,9 @@ docker-compose -f docker/prod/docker-compose.yml up -d web worker
 - Перейти с `docker-compose` (standalone) на плагин `docker compose` v2 и поправить
   workflow/Makefile — единая команда, встроенная в Docker.
 - Настроить `SENTRY_DSN` для мониторинга ошибок продакшена.
+- Проверять срок сертификата **снаружи** (UptimeRobot/Healthchecks/свой cron с
+  `curl -sSI https://<домен>/`): цикл `nginx -s reload` каждые 6 часов бесполезен,
+  если сам `certbot renew` падает — сайт молча доживает до истечения сертификата.
 - Слать уведомления о деплое в Telegram/Slack через `workflow_dispatch` + notify.
 
 ---

@@ -98,12 +98,15 @@ docker-compose -f docker/prod/docker-compose.yml up -d db nginx
 *Шаг 3.3:* Получить сертификат:
 
 ```bash
-docker-compose -f docker/prod/docker-compose.yml run --rm certbot \
+docker-compose -f docker/prod/docker-compose.yml run --rm --entrypoint certbot certbot \
   certonly --webroot --webroot-path=/var/www/certbot \
   --email your@email.com \
   -d yourdomain.com -d www.yourdomain.com \
   --agree-tos --no-eff-email
 ```
+
+> `--entrypoint certbot` нужен потому, что у сервиса `certbot` в compose свой
+> `entrypoint` (цикл `certbot renew`), а `run` переопределяет только `command`.
 
 *Шаг 3.4:* Раскомментировать HTTPS-блок в `nginx.conf` (он уже присутствует в файле).
 
