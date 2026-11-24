@@ -55,7 +55,7 @@ EOF
 
 ```bash
 make dev-up                                                     # db, redis, web, worker
-docker compose -f docker/dev/docker-compose.yml exec web python manage.py migrate
+docker compose -f docker/dev/docker-compose.yml exec web python manage.py migrate 
 docker compose -f docker/dev/docker-compose.yml exec web python manage.py createsuperuser
 ```
 
