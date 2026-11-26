@@ -1,17 +1,27 @@
 from django.contrib import admin
-from .models import Doctor, Specialization
+from .models import Doctor, AboutDoctorTab, AboutDoctorTabContent, DoctorAccreditation
 
 
-@admin.register(Specialization)
-class SpecializationAdmin(admin.ModelAdmin):
-    list_display = ['name']
-    search_fields = ['name']
+class DoctorAccreditationAdminForm(admin.StackedInline):
+    model = DoctorAccreditation
+    extra = 0
+
+
+class AboutDoctorTabContentAdminForm(admin.StackedInline):
+    model = AboutDoctorTabContent
+    extra = 0
+
+
+class AboutDoctorTabAdminForm(admin.StackedInline):
+    model = AboutDoctorTab
+    extra = 0
+    readonly_fields = ("slug",)
 
 
 @admin.register(Doctor)
 class DoctorAdmin(admin.ModelAdmin):
-    list_display = ['last_name', 'first_name', 'patronymic', 'is_active']
-    list_editable = ['is_active']
-    search_fields = ['last_name', 'first_name', 'patronymic']
-    list_filter = ['is_active', 'specializations']
-    filter_horizontal = ['specializations']
+    inlines = [
+        AboutDoctorTabAdminForm,
+        AboutDoctorTabContentAdminForm,
+        DoctorAccreditationAdminForm,
+    ]
