@@ -1,21 +1,27 @@
 from django.contrib import admin
-from django.urls import reverse
-from django.utils.html import format_html
-from nested_admin import NestedModelAdmin, NestedStackedInline, NestedTabularInline
+from .models import Doctor, AboutDoctorTab, AboutDoctorTabContent, DoctorAccreditation
 
-from .models import (
-    Doctor,
-    AboutDoctorInformation,
-    AboutDoctorTab,
-    AboutDoctorTabContent,
-)
+
+class DoctorAccreditationAdminForm(admin.StackedInline):
+    model = DoctorAccreditation
+    extra = 0
+
+
+class AboutDoctorTabContentAdminForm(admin.StackedInline):
+    model = AboutDoctorTabContent
+    extra = 0
+
+
+class AboutDoctorTabAdminForm(admin.StackedInline):
+    model = AboutDoctorTab
+    extra = 0
+    readonly_fields = ("slug",)
 
 
 @admin.register(Doctor)
-class DoctorAdmin(NestedModelAdmin):
-    inlines = [AboutDoctorTabContent]
-
-    list_display = ["full_name", "is_active"]
-    list_editable = ["is_active"]
-    search_fields = ["full_name"]
-    list_filter = ["is_active"]
+class DoctorAdmin(admin.ModelAdmin):
+    inlines = [
+        AboutDoctorTabAdminForm,
+        AboutDoctorTabContentAdminForm,
+        DoctorAccreditationAdminForm,
+    ]

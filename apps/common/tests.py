@@ -146,7 +146,7 @@ class GenerateImageVariantsTaskTest(TestCase):
 
     def test_task_loads_instance_and_generates_variants_for_field(self):
         doctor = Doctor.objects.create(
-            first_name='Иван', last_name='Иванов', patronymic='Иванович',
+            full_name='Иванов Иван Иванович',
             photo=make_test_image(name='photo.jpg'),
         )
 
@@ -165,7 +165,7 @@ class GenerateImageVariantsTaskTest(TestCase):
 
     def test_task_is_noop_for_empty_field(self):
         doctor = Doctor.objects.create(
-            first_name='Пётр', last_name='Петров', patronymic='Петрович',
+            full_name='Петров Пётр Петрович',
         )
 
         with patch('apps.common.tasks.generate_image_variants') as mocked:
@@ -191,7 +191,7 @@ class ImageVariantsMixinEnqueueTest(TestCase):
     def test_save_enqueues_task_for_each_nonempty_field(self):
         with patch('apps.common.mixins.generate_image_variants_task') as mocked_task:
             doctor = Doctor.objects.create(
-                first_name='Иван', last_name='Иванов', patronymic='Иванович',
+                full_name='Иванов Иван Иванович',
                 photo=make_test_image(name='photo.jpg'),
             )
 
@@ -201,7 +201,7 @@ class ImageVariantsMixinEnqueueTest(TestCase):
         with patch('apps.common.mixins.generate_image_variants_task') as mocked_task:
             mocked_task.delay.side_effect = Exception('брокер недоступен')
             doctor = Doctor.objects.create(
-                first_name='Пётр', last_name='Петров', patronymic='Петрович',
+                full_name='Петров Пётр Петрович',
                 photo=make_test_image(name='photo2.jpg'),
             )
 
