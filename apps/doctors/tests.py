@@ -1,6 +1,15 @@
-from django.test import Client, TestCase
+import shutil
+import tempfile
 
-from apps.doctors.models import AboutDoctorTab, AboutDoctorTabContent, Doctor
+from django.test import Client, TestCase, override_settings
+
+from apps.common.test_utils import make_test_image
+from apps.doctors.models import (
+    AboutDoctorTab,
+    AboutDoctorTabContent,
+    Doctor,
+    DoctorAccreditation,
+)
 
 
 class DoctorApiTest(TestCase):
@@ -176,3 +185,48 @@ class AboutDoctorTabSlugTest(TestCase):
             [{'tabKey': tab.slug, 'tabTitle': 'Образование'}],
         )
         self.assertIn(tab.slug, payload['aboutEmployee']['content'])
+
+
+class DoctorAccreditationTest(TestCase):
+    """accreditation — массив картинок в формате PictureFormatSchema."""
+
+    def setUp(self):
+        self.client = Client()
+        self.media_root = tempfile.mkdtemp()
+        self.override = override_settings(MEDIA_ROOT=self.media_root)
+        self.override.enable()
+        self.doctor = Doctor.objects.create(full_name='Тарасова Ярослава Игоревна')
+
+    def tearDown(self):
+        self.override.disable()
+        shutil.rmtree(self.media_root, ignore_errors=True)
+
+    def test_accreditation_is_picture_array(self):
+        for name in ('accreditation-1.jpg', 'accreditation-2.jpg'):
+            DoctorAccreditation.objects.create(
+                doctor=self.doctor, photo=make_test_image(name=name),
+            )
+
+        payload = self.client.get(f'/api/v1/doctors/{self.doctor.pk}/').json()
+
+        pictures = payload['accreditation']
+        self.assertEqual(len(pictures), 2)
+        for picture in pictures:
+            self.assertTrue(picture['original']['src'].startswith('/media/doctors/'))
+            # вариантов нет — мобильная версия не подставляется, а не приходит null
+            self.assertNotIn('mobile', picture['original'])
+
+    def test_items_without_photo_are_skipped(self):
+        DoctorAccreditation.objects.create(doctor=self.doctor)
+        DoctorAccreditation.objects.create(
+            doctor=self.doctor, photo=make_test_image(name='accreditation.jpg'),
+        )
+
+        payload = self.client.get(f'/api/v1/doctors/{self.doctor.pk}/').json()
+
+        self.assertEqual(len(payload['accreditation']), 1)
+
+    def test_no_accreditation_gives_empty_array(self):
+        payload = self.client.get(f'/api/v1/doctors/{self.doctor.pk}/').json()
+
+        self.assertEqual(payload['accreditation'], [])

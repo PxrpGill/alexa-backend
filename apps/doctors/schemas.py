@@ -69,6 +69,7 @@ class DoctorSchema(Schema):
     poster: Optional[PictureFormatSchema] = None
     fullname: str
     position: Optional[str] = None
+    accreditation: list[PictureFormatSchema] = []
     aboutEmployee: Optional[AboutDoctorSchema] = None
 
     @staticmethod
@@ -78,6 +79,14 @@ class DoctorSchema(Schema):
     @staticmethod
     def resolve_fullname(obj):
         return obj.full_name
+
+    @staticmethod
+    def resolve_accreditation(obj):
+        pictures = (
+            build_picture_format(item.photo, item.photo_mobile)
+            for item in sorted(obj.doctor_accreditation.all(), key=lambda item: item.pk)
+        )
+        return [picture for picture in pictures if picture]
 
     @staticmethod
     def resolve_aboutEmployee(obj):

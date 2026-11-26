@@ -10,9 +10,10 @@ router = Router(tags=['Врачи'])
 
 
 def _doctors():
-    """Активные врачи с предзагрузкой «О сотруднике» (иначе N+1)."""
+    """Активные врачи с предзагрузкой «О сотруднике» и аккредитаций (иначе N+1)."""
     return Doctor.objects.filter(is_active=True).prefetch_related(
-        'doctor_informations__tab_contents'
+        'doctor_informations__tab_contents',
+        'doctor_accreditation',
     )
 
 
