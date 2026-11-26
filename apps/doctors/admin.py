@@ -1,17 +1,21 @@
 from django.contrib import admin
-from .models import Doctor, Specialization
+from django.urls import reverse
+from django.utils.html import format_html
+from nested_admin import NestedModelAdmin, NestedStackedInline, NestedTabularInline
 
-
-@admin.register(Specialization)
-class SpecializationAdmin(admin.ModelAdmin):
-    list_display = ['name']
-    search_fields = ['name']
+from .models import (
+    Doctor,
+    AboutDoctorInformation,
+    AboutDoctorTab,
+    AboutDoctorTabContent,
+)
 
 
 @admin.register(Doctor)
-class DoctorAdmin(admin.ModelAdmin):
-    list_display = ['last_name', 'first_name', 'patronymic', 'is_active']
-    list_editable = ['is_active']
-    search_fields = ['last_name', 'first_name', 'patronymic']
-    list_filter = ['is_active', 'specializations']
-    filter_horizontal = ['specializations']
+class DoctorAdmin(NestedModelAdmin):
+    inlines = [AboutDoctorTabContent]
+
+    list_display = ["full_name", "is_active"]
+    list_editable = ["is_active"]
+    search_fields = ["full_name"]
+    list_filter = ["is_active"]

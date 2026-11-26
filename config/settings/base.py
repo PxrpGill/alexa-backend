@@ -12,8 +12,12 @@ ALLOWED_HOSTS = config(
     cast=lambda v: [s.strip() for s in v.split(",")],
 )
 
+# Тема админки: jazzmin (по умолчанию) или стоковый Django admin.
+# Переключается переменной окружения USE_JAZZMIN, чтобы можно было сравнить UI.
+USE_JAZZMIN = config("USE_JAZZMIN", default=True, cast=bool)
+
 DJANGO_APPS = [
-    "jazzmin",
+    *(["jazzmin"] if USE_JAZZMIN else []),
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -27,6 +31,7 @@ THIRD_PARTY_APPS = [
     "corsheaders",
     "django_ckeditor_5",
     "adminsortable2",
+    "nested_admin",
 ]
 
 LOCAL_APPS = [
@@ -247,6 +252,8 @@ CKEDITOR_5_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
 
 JAZZMIN_SETTINGS = {
     "custom_css": ["css/ckeditor5.css"],
+    # Связанные объекты (FK «+» / карандаш) открываются в модальном окне (iframe).
+    "related_modal_active": True,
     "site_title": "Алекса Администрация",
     "site_brand": "Стоматология Алекса",
     "site_header": "Алекса",
