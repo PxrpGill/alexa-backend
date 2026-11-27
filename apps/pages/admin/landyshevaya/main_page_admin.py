@@ -15,7 +15,7 @@ from ...models.landyshevaya.main_page_models import (
     FaqFactoidsModel,
     FaqSectionModel,
 )
-from ..initial_admin import SingletonModelAdmin
+from ..initial_admin import NestedSingletonModelAdmin
 
 
 class FaqFactoidsAdmin(NestedStackedInline):
@@ -108,7 +108,7 @@ class HeroPromotionSlideInline(NestedStackedInline):
 
 
 @admin.register(LandyshevayaMainPageModel)
-class LandyshevayaMainPageAdmin(NestedModelAdmin, SingletonModelAdmin):
+class LandyshevayaMainPageAdmin(NestedModelAdmin, NestedSingletonModelAdmin):
     inlines = [
         HeroPromotionSlideInline,
         CuratorsSectionInline,

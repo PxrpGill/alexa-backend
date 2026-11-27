@@ -19,7 +19,7 @@ make dev-check           # python manage.py check
 
 ## Structure / conventions
 
-- Settings: `config/settings/{base,dev,prod}.py`. New app ⇒ add to `LOCAL_APPS` in `base.py` (`jazzmin` must stay first in `INSTALLED_APPS`).
+- Settings: `config/settings/{base,dev,prod}.py`. New app ⇒ add to `LOCAL_APPS` in `base.py` (`unfold` must stay before `django.contrib.admin` in `INSTALLED_APPS`).
 - New API router ⇒ import + `api.add_router("/name", ...)` in `config/api.py`. Base URL `/api/v1/`; docs at `/api/v1/docs`; OpenAPI at `/api/v1/openapi.json`.
 - `APPEND_SLASH = False` — endpoint paths have no trailing slash (`@router.get("")`, `@router.get("/{slug}")`, `@router.post("")`). Tests hit exact paths.
 - Every app ships: `models.py`, `admin.py`, `api.py`, `schemas.py` (`*CreateSchema` for POST bodies), optional `tests.py`. Models use Russian `verbose_name` on all fields and in `Meta`.
@@ -117,7 +117,7 @@ never sent to the chat (protected personal data) — only an "attached / none" m
 - Only `processing_status=ready` items are served; groups without them are hidden. Processing fields
   are written by the task via `.update()` only — a `save()` without a media change skips them.
 - ffmpeg/ffprobe are in both Docker images and CI (`StoryItem.clean()` probes upload duration);
-  nginx allows 110M on `/admin/`. Drag-n-drop ordering comes from `django-admin-sortable2`.
+  nginx allows 110M on `/admin/`. Drag-n-drop ordering comes from Unfold (`ordering_field`).
 
 ## Stale references (do NOT trust)
 

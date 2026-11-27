@@ -1,9 +1,10 @@
 from django.contrib import admin
+from unfold.admin import ModelAdmin
 from .models import DMS
 
 
 @admin.register(DMS)
-class DMSAdmin(admin.ModelAdmin):
+class DMSAdmin(ModelAdmin):
     list_display = [
         "patient_name",
         "patient_phone",

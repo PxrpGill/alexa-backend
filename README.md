@@ -19,7 +19,7 @@ Backend сети стоматологических клиник «Алекса�
 | Django 5.1 + django-ninja 1.3 | приложение и REST API (схемы в стиле FastAPI) |
 | PostgreSQL 16 | БД |
 | Redis + Celery | очередь для обработки изображений, кэш для rate limit |
-| django-jazzmin | UI админки |
+| django-unfold | UI админки |
 | django-ckeditor-5 | rich-text поля |
 | Docker Compose | dev и прод одинаково поднимаются контейнерами |
 
