@@ -1,10 +1,15 @@
 import shutil
 import tempfile
 
-from django.test import Client, TestCase, override_settings
+from django.contrib import admin as django_admin
+from django.core.exceptions import ValidationError
+from django import forms
+from django.test import Client, RequestFactory, TestCase, override_settings
 
 from apps.common.test_utils import make_test_image
 from apps.branch.models import PagesModel
+from apps.users.models import User
+from apps.doctors.admin import AboutDoctorTabContentAdminForm
 from apps.doctors.models import (
     AboutDoctorTab,
     AboutDoctorTabContent,
@@ -278,3 +283,75 @@ class DoctorAccreditationTest(TestCase):
         payload = self.client.get(f'/api/v1/doctors/{self.doctor.pk}').json()
 
         self.assertEqual(payload['accreditation'], [])
+
+
+class AboutDoctorTabBelongsToDoctorTest(TestCase):
+    """Раздел, созданный на враче, недоступен в пунктах другого врача."""
+
+    def setUp(self):
+        self.doctor = Doctor.objects.create(full_name='Тарасова Ярослава Игоревна')
+        self.other = Doctor.objects.create(full_name='Петров Пётр Петрович')
+        self.tab = AboutDoctorTab.objects.create(
+            doctor=self.doctor, title='Образование',
+        )
+        self.other_tab = AboutDoctorTab.objects.create(
+            doctor=self.other, title='Повышение квалификации',
+        )
+
+        user = User.objects.create_superuser('admin', 'admin@example.com', 'pass')
+        self.request = RequestFactory().get('/')
+        self.request.user = user
+        self.inline = AboutDoctorTabContentAdminForm(Doctor, django_admin.site)
+
+    def _tab_field(self, doctor):
+        formset = self.inline.get_formset(self.request, obj=doctor)
+        return formset.form.base_fields['tab']
+
+    def test_inline_lists_only_tabs_of_the_doctor(self):
+        queryset = self._tab_field(self.other).queryset
+
+        self.assertEqual(list(queryset), [self.other_tab])
+
+    def test_inline_has_no_tabs_for_unsaved_doctor(self):
+        queryset = self._tab_field(None).queryset
+
+        self.assertEqual(list(queryset), [])
+
+    def test_parent_doctor_is_hidden_in_inline(self):
+        # FK на врача в инлайне — скрытое поле InlineForeignKeyField,
+        # подменить врача через форму нельзя.
+        formset = self.inline.get_formset(self.request, obj=self.doctor)()
+
+        self.assertIsInstance(
+            formset.empty_form.fields['doctor'].widget, forms.HiddenInput,
+        )
+
+    def test_foreign_tab_is_rejected_by_validation(self):
+        content = AboutDoctorTabContent(
+            doctor=self.other, tab=self.tab, title='ЧГУ',
+        )
+
+        with self.assertRaises(ValidationError):
+            content.full_clean()
+
+    def test_save_keeps_doctor_in_sync_with_tab(self):
+        content = AboutDoctorTabContent.objects.create(
+            doctor=self.other, tab=self.tab, title='ЧГУ',
+        )
+
+        content.refresh_from_db()
+        self.assertEqual(content.doctor_id, self.doctor.pk)
+
+    def test_content_of_foreign_tab_is_not_served(self):
+        # Даже если данные разошлись в обход формы (например, из shell),
+        # API группирует пункты по разделу врача, а не по полю doctor.
+        content = AboutDoctorTabContent.objects.create(
+            doctor=self.doctor, tab=self.tab, title='ЧГУ',
+        )
+        AboutDoctorTabContent.objects.filter(pk=content.pk).update(
+            doctor_id=self.other.pk,
+        )
+
+        payload = self.client.get(f'/api/v1/doctors/{self.other.pk}').json()
+
+        self.assertNotIn('aboutEmployee', payload)

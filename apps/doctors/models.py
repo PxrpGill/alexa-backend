@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.text import slugify
 from pytils.translit import slugify as t_slugify
@@ -30,8 +31,8 @@ class DoctorAccreditation(ImageVariantsMixin, models.Model):
     )
 
     class Meta:
-        verbose_name = 'Изображение аккредитации'
-        verbose_name = 'Изображения аккредитации'
+        verbose_name = "Изображение аккредитации"
+        verbose_name = "Изображения аккредитации"
 
     def __str__(self):
         return "Изображение аккредитации"
@@ -73,6 +74,21 @@ class AboutDoctorTabContent(models.Model):
 
     def __str__(self):
         return self.title
+
+    def clean(self):
+        super().clean()
+        # Раздел принадлежит конкретному сотруднику: пункт нельзя привязать
+        # к разделу другого врача.
+        if self.tab_id and self.doctor_id and self.tab.doctor_id != self.doctor_id:
+            raise ValidationError({"tab": "Раздел принадлежит другому сотруднику."})
+
+    def save(self, *args, **kwargs):
+        # doctor — денормализация tab.doctor, держим их согласованными,
+        # чтобы пункт не оказался у одного врача, а раздел — у другого.
+        if self.tab_id:
+            self.doctor_id = self.tab.doctor_id
+
+        return super().save(*args, **kwargs)
 
 
 class AboutDoctorTab(models.Model):
@@ -153,7 +169,13 @@ class Doctor(ImageVariantsMixin, models.Model):
     )
     is_active = models.BooleanField(default=True, verbose_name="Активен на сайте")
 
-    pages = models.ManyToManyField(PagesModel, verbose_name="Привязка к страницам сайта", related_name="doctors")
+    pages = models.ManyToManyField(
+        PagesModel,
+        verbose_name="Привязка к страницам сайта",
+        related_name="doctors",
+        null=True,
+        blank=True,
+    )
 
     IMAGE_VARIANT_FIELDS = ["photo", "photo_mobile"]
 
