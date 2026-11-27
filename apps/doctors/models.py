@@ -30,8 +30,8 @@ class DoctorAccreditation(ImageVariantsMixin, models.Model):
     )
 
     class Meta:
-        verbose_name = 'Изображение аккредитации'
-        verbose_name = 'Изображения аккредитации'
+        verbose_name = "Изображение аккредитации"
+        verbose_name = "Изображения аккредитации"
 
     def __str__(self):
         return "Изображение аккредитации"
@@ -153,7 +153,13 @@ class Doctor(ImageVariantsMixin, models.Model):
     )
     is_active = models.BooleanField(default=True, verbose_name="Активен на сайте")
 
-    pages = models.ManyToManyField(PagesModel, verbose_name="Привязка к страницам сайта", related_name="doctors")
+    pages = models.ManyToManyField(
+        PagesModel,
+        verbose_name="Привязка к страницам сайта",
+        related_name="doctors",
+        null=True,
+        blank=True,
+    )
 
     IMAGE_VARIANT_FIELDS = ["photo", "photo_mobile"]
 
