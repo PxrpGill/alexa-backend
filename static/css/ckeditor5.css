@@ -1,3 +1,4 @@
+/* Прилипающая панель инструментов CKEditor. */
 .ck-editor__top {
     position: sticky;
     top: 0;
@@ -6,4 +7,21 @@
 
 .ck.ck-sticky-panel__content {
     position: static !important;
+}
+
+/* Unfold включает тёмную тему, и область редактирования наследует светлый цвет
+   текста от body. Сам CKEditor при этом рисует поле на белом фоне — светлый
+   текст на белом почти не виден. Задаём цвет содержимого явно.
+   Inline-стили редактора (например, плагин цвета текста) остаются в силе:
+   они применяются к вложенным span'ам и перебивают наследование. */
+.ck.ck-editor__editable,
+.ck.ck-editor__editable.ck-focused,
+.ck.ck-editor .ck-content,
+.ck.fullscreen-mode .ck.ck-content.ck-editor__editable {
+    color: #000;
+}
+
+/* Плейсхолдер пустого поля тоже должен читаться на белом. */
+.ck.ck-editor__editable .ck-placeholder::before {
+    color: #6b7280;
 }
