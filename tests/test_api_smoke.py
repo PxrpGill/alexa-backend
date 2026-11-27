@@ -10,8 +10,8 @@ class APISmokeTest(TestCase):
     """
 
     EXPECTED_PATHS = [
-        '/api/v1/doctors/',
-        '/api/v1/doctors/{doctor_id}/',
+        '/api/v1/doctors',
+        '/api/v1/doctors/{doctor_id}',
         '/api/v1/branches/',
         '/api/v1/blog',
         '/api/v1/blog/{slug}',
