@@ -1,4 +1,5 @@
 from django.contrib import admin
+from unfold.admin import ModelAdmin, TabularInline
 from django.urls import reverse
 from django.utils.html import format_html
 
@@ -15,7 +16,7 @@ from .models import (
 
 
 @admin.register(VacancyCategory)
-class VacancyCategoryAdmin(admin.ModelAdmin):
+class VacancyCategoryAdmin(ModelAdmin):
     list_display = ["name", "slug", "is_active", "sort_order"]
     list_editable = ["is_active", "sort_order"]
     search_fields = ["name", "slug"]
@@ -23,33 +24,33 @@ class VacancyCategoryAdmin(admin.ModelAdmin):
     ordering = ["sort_order", "id"]
 
 
-class VacancyBadgeInline(admin.TabularInline):
+class VacancyBadgeInline(TabularInline):
     model = VacancyBadge
     extra = 0
 
 
-class VacancyBenefitInline(admin.TabularInline):
+class VacancyBenefitInline(TabularInline):
     model = VacancyBenefit
     extra = 0
 
 
-class VacancyBenefitImageInline(admin.TabularInline):
+class VacancyBenefitImageInline(TabularInline):
     model = VacancyBenefitImage
     extra = 0
 
 
-class VacancyRequirementInline(admin.TabularInline):
+class VacancyRequirementInline(TabularInline):
     model = VacancyRequirement
     extra = 0
 
 
-class VacancyResponsibilityInline(admin.TabularInline):
+class VacancyResponsibilityInline(TabularInline):
     model = VacancyResponsibility
     extra = 0
 
 
 @admin.register(Vacancy)
-class VacancyAdmin(admin.ModelAdmin):
+class VacancyAdmin(ModelAdmin):
     list_display = [
         "name",
         "category",
@@ -101,7 +102,7 @@ class VacancyAdmin(admin.ModelAdmin):
 
 
 @admin.register(Application)
-class ApplicationAdmin(admin.ModelAdmin):
+class ApplicationAdmin(ModelAdmin):
     list_display = ["created_at", "vacancy", "name", "phone", "status", "resume_link"]
     list_editable = ["status"]
     list_filter = ["status", "vacancy", "created_at"]

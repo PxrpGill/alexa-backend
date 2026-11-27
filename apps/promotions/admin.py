@@ -1,4 +1,5 @@
 from django.contrib import admin
+from unfold.admin import ModelAdmin, StackedInline
 from django.forms.formsets import DELETION_FIELD_NAME, ORDERING_FIELD_NAME
 from django.forms.models import BaseInlineFormSet
 
@@ -40,12 +41,12 @@ class SkipEmptyInlineFormSet(BaseInlineFormSet):
         return False
 
 
-class PromotionRequestFormAdminModel(admin.StackedInline):
+class PromotionRequestFormAdminModel(StackedInline):
     model = PromotionRequestFormModel
     extra = 1
 
 @admin.register(Promotion)
-class PromotionAdmin(admin.ModelAdmin):
+class PromotionAdmin(ModelAdmin):
     list_display = ["title", "starts_at", "ends_at", "is_active"]
     list_editable = ["is_active"]
     list_filter = ["is_active"]
@@ -54,7 +55,7 @@ class PromotionAdmin(admin.ModelAdmin):
 
 
 @admin.register(PromotionRequests)
-class PromotionRequestAdmin(admin.ModelAdmin):
+class PromotionRequestAdmin(ModelAdmin):
     list_display = [
         "patient_name",
         "patient_phone",

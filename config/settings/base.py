@@ -1,6 +1,9 @@
 import sys
 from pathlib import Path
+
 from decouple import config
+from django.templatetags.static import static
+from django.urls import reverse_lazy
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -12,12 +15,12 @@ ALLOWED_HOSTS = config(
     cast=lambda v: [s.strip() for s in v.split(",")],
 )
 
-# Тема админки: jazzmin (по умолчанию) или стоковый Django admin.
-# Переключается переменной окружения USE_JAZZMIN, чтобы можно было сравнить UI.
-USE_JAZZMIN = config("USE_JAZZMIN", default=True, cast=bool)
-
 DJANGO_APPS = [
-    *(["jazzmin"] if USE_JAZZMIN else []),
+    # Тема админки. Обязательно раньше django.contrib.admin: подменяет AdminSite.
+    "unfold",
+    "unfold.contrib.filters",
+    "unfold.contrib.forms",
+    "unfold.contrib.inlines",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -30,7 +33,6 @@ THIRD_PARTY_APPS = [
     "ninja",
     "corsheaders",
     "django_ckeditor_5",
-    "adminsortable2",
     "nested_admin",
 ]
 
@@ -251,73 +253,265 @@ CKEDITOR_5_CONFIGS = {
 
 CKEDITOR_5_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
 
-JAZZMIN_SETTINGS = {
-    "custom_css": ["css/ckeditor5.css"],
-    # Связанные объекты (FK «+» / карандаш) открываются в модальном окне (iframe).
-    "related_modal_active": True,
-    "site_title": "Алекса Администрация",
-    "site_brand": "Стоматология Алекса",
-    "site_header": "Алекса",
-    "welcome_sign": "Добро пожаловать в панель управления",
-    "show_sidebar": True,
-    "navigation_expanded": True,
-    "hide_apps": [],
-    "hide_models": [],
-    "icons": {
-        "auth": "fas fa-users-cog",
-        "users.user": "fas fa-user",
-        "doctors.doctor": "fas fa-user-md",
-        "doctors.specialization": "fas fa-stethoscope",
-        "blog.blogcategory": "fas fa-tag",
-        "blog.blogpost": "fas fa-newspaper",
-        "promotions.promotion": "fas fa-percent",
-        "promotions.promotioncondition": "fas fa-list-check",
-        "appointments.appointment": "fas fa-calendar-check",
-        "vacancies.vacancycategory": "fas fa-layer-group",
-        "vacancies.vacancy": "fas fa-briefcase",
-        "vacancies.application": "fas fa-file-signature",
-        "stories.storygroup": "fas fa-play-circle",
-    },
-    "order_with_respect_to": [
-        "users",
-        "doctors",
-        "blog",
-        "promotions",
-        "appointments",
-        "vacancies",
-        "stories",
-    ],
-    "default_icon_parents": "fas fa-chevron-circle-right",
-    "default_icon_children": "fas fa-circle",
-}
-
-JAZZMIN_UI_TWEAKS = {
-    "navbar_small_text": False,
-    "footer_small_text": False,
-    "body_small_text": False,
-    "brand_small_text": False,
-    "brand_colour": "navbar-primary",
-    "accent": "accent-primary",
-    "navbar": "navbar-dark",
-    "no_navbar_border": False,
-    "navbar_fixed": True,
-    "layout_boxed": False,
-    "footer_fixed": False,
-    "sidebar_fixed": True,
-    "sidebar": "sidebar-dark-primary",
-    "sidebar_nav_small_text": False,
-    "sidebar_disable_expand": False,
-    "sidebar_nav_child_indent": False,
-    "sidebar_nav_compact_style": False,
-    "sidebar_nav_legacy_style": False,
-    "sidebar_nav_flat_style": False,
-    "theme": "default",
-    "button_classes": {
-        "primary": "btn-primary",
-        "secondary": "btn-secondary",
-        "info": "btn-info",
-        "warning": "btn-warning",
-        "danger": "btn-danger",
-        "success": "btn-success",
+UNFOLD = {
+    "SITE_TITLE": "Алекса Администрация",
+    "SITE_HEADER": "Стоматология Алекса",
+    "SITE_SUBHEADER": "Панель управления",
+    "SITE_URL": "/admin/",
+    "SITE_SYMBOL": "medical_services",
+    "SHOW_HISTORY": True,
+    "SHOW_VIEW_ON_SITE": False,
+    # CKEditor: прилипающая панель инструментов (см. static/css/ckeditor5.css).
+    "STYLES": [lambda request: static("css/ckeditor5.css")],
+    "SIDEBAR": {
+        "show_search": True,
+        "command_search": False,
+        "show_all_applications": False,
+        "navigation": [
+            {
+                "title": "Пользователи",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Пользователи",
+                        "icon": "person",
+                        "link": reverse_lazy("admin:users_user_changelist"),
+                    },
+                    {
+                        "title": "Группы",
+                        "icon": "group",
+                        "link": reverse_lazy("admin:auth_group_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": "Клиника",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Сотрудники",
+                        "icon": "medical_services",
+                        "link": reverse_lazy("admin:doctors_doctor_changelist"),
+                    },
+                    {
+                        "title": "Филиалы",
+                        "icon": "store",
+                        "link": reverse_lazy("admin:branch_branchmodel_changelist"),
+                    },
+                    {
+                        "title": "Страницы сайта",
+                        "icon": "web",
+                        "link": reverse_lazy("admin:branch_pagesmodel_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": "Контент",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Статьи",
+                        "icon": "article",
+                        "link": reverse_lazy("admin:blog_blogpost_changelist"),
+                    },
+                    {
+                        "title": "Категории блога",
+                        "icon": "category",
+                        "link": reverse_lazy("admin:blog_blogcategory_changelist"),
+                    },
+                    {
+                        "title": "Акции",
+                        "icon": "sell",
+                        "link": reverse_lazy("admin:promotions_promotion_changelist"),
+                    },
+                    {
+                        "title": "Сторисы",
+                        "icon": "play_circle",
+                        "link": reverse_lazy("admin:stories_storygroup_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": "Заявки",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Записи на приём",
+                        "icon": "event_available",
+                        "link": reverse_lazy("admin:appointments_appointment_changelist"),
+                    },
+                    {
+                        "title": "Заявки на акции",
+                        "icon": "redeem",
+                        "link": reverse_lazy(
+                            "admin:promotions_promotionrequests_changelist"
+                        ),
+                    },
+                    {
+                        "title": "Заявки ДМС",
+                        "icon": "assignment",
+                        "link": reverse_lazy("admin:dms_dms_changelist"),
+                    },
+                    {
+                        "title": "Заявки на консультацию",
+                        "icon": "support_agent",
+                        "link": reverse_lazy(
+                            "admin:consultation_consultation_changelist"
+                        ),
+                    },
+                ],
+            },
+            {
+                "title": "Вакансии",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Вакансии",
+                        "icon": "work",
+                        "link": reverse_lazy("admin:vacancies_vacancy_changelist"),
+                    },
+                    {
+                        "title": "Категории вакансий",
+                        "icon": "cases",
+                        "link": reverse_lazy(
+                            "admin:vacancies_vacancycategory_changelist"
+                        ),
+                    },
+                    {
+                        "title": "Отклики",
+                        "icon": "description",
+                        "link": reverse_lazy("admin:vacancies_application_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": "Страницы: Ландышевая",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Главная страница",
+                        "icon": "home",
+                        "link": reverse_lazy(
+                            "admin:pages_landyshevayamainpagemodel_changelist"
+                        ),
+                    },
+                    {
+                        "title": "Взрослым",
+                        "icon": "person",
+                        "items": [
+                            {
+                                "title": "Консультация",
+                                "link": reverse_lazy(
+                                    "admin:pages_landyshevayaadultconsultationmodel_changelist"
+                                ),
+                            },
+                            {
+                                "title": "Гнатология",
+                                "link": reverse_lazy(
+                                    "admin:pages_landyshevayaadultgnathologymodel_changelist"
+                                ),
+                            },
+                            {
+                                "title": "Гигиена",
+                                "link": reverse_lazy(
+                                    "admin:pages_landyshevayaadulthygienemodel_changelist"
+                                ),
+                            },
+                            {
+                                "title": "Ортодонтия",
+                                "link": reverse_lazy(
+                                    "admin:pages_landyshevayaadultorthodonticsmodel_changelist"
+                                ),
+                            },
+                            {
+                                "title": "Ортопедия",
+                                "link": reverse_lazy(
+                                    "admin:pages_landyshevayaadultorthopedicsmodel_changelist"
+                                ),
+                            },
+                            {
+                                "title": "Пародонтология",
+                                "link": reverse_lazy(
+                                    "admin:pages_landyshevayaadultperiodontologymodel_changelist"
+                                ),
+                            },
+                            {
+                                "title": "Хирургия и имплантация",
+                                "link": reverse_lazy(
+                                    "admin:pages_landyshevayaadultsurgeryandimplantationmodel_changelist"
+                                ),
+                            },
+                            {
+                                "title": "Терапия",
+                                "link": reverse_lazy(
+                                    "admin:pages_landyshevayaadulttherapymodel_changelist"
+                                ),
+                            },
+                            {
+                                "title": "Лечение во сне",
+                                "link": reverse_lazy(
+                                    "admin:pages_landyshevayaadulttreatmentduringsleepmodel_changelist"
+                                ),
+                            },
+                        ],
+                    },
+                    {
+                        "title": "Детям",
+                        "icon": "child_care",
+                        "items": [
+                            {
+                                "title": "Консультация",
+                                "link": reverse_lazy(
+                                    "admin:pages_landyshevayapediatricconsultationmodel_changelist"
+                                ),
+                            },
+                            {
+                                "title": "Гигиена",
+                                "link": reverse_lazy(
+                                    "admin:pages_landyshevayapediatrichygienemodel_changelist"
+                                ),
+                            },
+                            {
+                                "title": "Ортодонтия",
+                                "link": reverse_lazy(
+                                    "admin:pages_landyshevayapediatricorthodonticsmodel_changelist"
+                                ),
+                            },
+                            {
+                                "title": "Хирургия и имплантация",
+                                "link": reverse_lazy(
+                                    "admin:pages_landyshevayapediatricsurgeryandimplantationmodel_changelist"
+                                ),
+                            },
+                            {
+                                "title": "Терапия",
+                                "link": reverse_lazy(
+                                    "admin:pages_landyshevayapediatrictherapymodel_changelist"
+                                ),
+                            },
+                            {
+                                "title": "Лечение во сне",
+                                "link": reverse_lazy(
+                                    "admin:pages_landyshevayapediatrictreatmentduringsleepmodel_changelist"
+                                ),
+                            },
+                        ],
+                    },
+                ],
+            },
+            {
+                "title": "Страницы: Волкова",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Главная страница",
+                        "icon": "home",
+                        "link": reverse_lazy(
+                            "admin:pages_volkovamainpagemodel_changelist"
+                        ),
+                    },
+                ],
+            },
+        ],
     },
 }

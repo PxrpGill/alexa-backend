@@ -1,9 +1,11 @@
 from django.contrib import admin
 
+from unfold.admin import ModelAdmin
+
 from ..models import landyshevaya, volkova
 
 
-class SingletonModelAdmin(admin.ModelAdmin):
+class SingletonAddPermissionMixin:
     """Прячет кнопку «Добавить», когда единственная запись уже создана.
 
     Прямой заход на /add/ тоже вернёт 403 — Django проверяет этот же метод.
@@ -13,6 +15,19 @@ class SingletonModelAdmin(admin.ModelAdmin):
         if not super().has_add_permission(request):
             return False
         return not self.model.objects.exists()
+
+
+class SingletonModelAdmin(SingletonAddPermissionMixin, ModelAdmin):
+    pass
+
+
+class NestedSingletonModelAdmin(SingletonAddPermissionMixin, admin.ModelAdmin):
+    """База для страниц на django-nested-admin.
+
+    Unfold не умеет вложенные инлайны глубже двух уровней, поэтому главная
+    Ландышевой остаётся на nested-admin и наследуется от стокового ModelAdmin:
+    его миксины конфликтуют с nested-формсетами.
+    """
 
 
 PAGE_MODELS = (

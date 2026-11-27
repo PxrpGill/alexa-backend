@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 Django 5.1.4 + django-ninja backend стоматологической клиники «Алекса»: мультифилиальная
-структура, ролевая admin-панель на jazzmin, публичный REST API без аутентификации
+структура, ролевая admin-панель на django-unfold, публичный REST API без аутентификации
 (потребитель — Next.js фронтенд). Язык проекта — русский: `verbose_name`, docstrings,
 сообщения об ошибках API и commit-сообщения на русском.
 
@@ -39,9 +39,12 @@ docker-compose -f docker/dev/docker-compose.yml exec web \
 - `config/settings/{base,dev,prod}.py`; `DJANGO_SETTINGS_MODULE` по умолчанию
   `config.settings.dev` (задан в `manage.py` и `config/celery.py`), в compose — явно.
 - Новое приложение → добавить в `LOCAL_APPS` в `base.py`. Порядок `INSTALLED_APPS`:
-  `jazzmin` строго перед `django.contrib.admin`.
+  `unfold` строго перед `django.contrib.admin`.
 - Новый роутер → импорт + `api.add_router("/name", router)` в `config/api.py`.
-- Новая модель в admin → иконка в `JAZZMIN_SETTINGS['icons']` (`app.model` в нижнем регистре).
+- Новая модель в admin → пункт с иконкой Material Symbols в
+  `UNFOLD['SIDEBAR']['navigation']` (`base.py`), admin-класс наследуется от
+  `unfold.admin.ModelAdmin` (инлайны — от `unfold.admin.StackedInline`/`TabularInline`),
+  иначе поля остаются без стилей.
 - `.env` читается через `python-decouple`; шаблон — `.env.example`, дев-значения —
   `docker/dev/.env.dev`, прод — `docker/prod/.env.prod.example`.
 
@@ -196,7 +199,7 @@ worker по OOM. При загрузке больше 40 Мп не пускае�
 Длительность и размер видео проверяются в `StoryItem.clean()` через ffprobe
 (`MAX_STORY_VIDEO_SECONDS`, `MAX_STORY_VIDEO_SIZE`), поэтому ffmpeg стоит в обоих образах и
 в CI; тест транскода пропускается без ffmpeg. Под 100-мегабайтные загрузки у `/admin/` в nginx
-`client_max_body_size 110M`. Сортировка перетаскиванием — `django-admin-sortable2`.
+`client_max_body_size 110M`. Сортировка перетаскиванием — `ordering_field` из Unfold.
 
 ### Типографика
 Вся русская типографика применяется **на отдаче**, а не в `save()`: в БД и админке

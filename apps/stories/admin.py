@@ -1,9 +1,10 @@
-from adminsortable2.admin import SortableAdminMixin, SortableStackedInline
 from django.contrib import admin, messages
 from django.db import transaction
 from django.db.models import Count
 from django.utils import timezone
 from django.utils.html import format_html
+
+from unfold.admin import ModelAdmin, StackedInline
 
 from .models import (
     STALE_PROCESSING_AFTER,
@@ -20,7 +21,7 @@ _STATUS_COLORS = {
 }
 
 
-class StoryItemInline(SortableStackedInline):
+class StoryItemInline(StackedInline):
     model = StoryItem
     extra = 0
     fields = [
@@ -28,10 +29,13 @@ class StoryItemInline(SortableStackedInline):
         "image",
         "video",
         "duration",
+        "order",
         "media_preview",
         "processing_status_display",
     ]
     readonly_fields = ["media_preview", "processing_status_display"]
+    ordering_field = "order"
+    hide_ordering_field = True
 
     @admin.display(description="Превью")
     def media_preview(self, obj):
@@ -75,7 +79,9 @@ class StoryItemInline(SortableStackedInline):
 
 
 @admin.register(StoryGroup)
-class StoryGroupAdmin(SortableAdminMixin, admin.ModelAdmin):
+class StoryGroupAdmin(ModelAdmin):
+    ordering_field = "order"
+    hide_ordering_field = True
     list_display = [
         "preview_thumbnail",
         "__str__",
