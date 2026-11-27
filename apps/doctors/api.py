@@ -17,13 +17,18 @@ def _doctors():
     )
 
 
-@router.get('/', response=list[DoctorSchema], exclude_none=True)
-def list_doctors(request):
-    """Список активных врачей."""
-    return _doctors()
+@router.get('', response=list[DoctorSchema], exclude_none=True)
+def list_doctors(request, page_slug: str | None = None):
+    """Список активных врачей. `page_slug` фильтрует по странице сайта."""
+    doctors = _doctors()
+
+    if page_slug:
+        doctors = doctors.filter(pages__slug=page_slug)
+        
+    return doctors
 
 
-@router.get('/{doctor_id}/', response=DoctorSchema, exclude_none=True)
+@router.get('/{doctor_id}', response=DoctorSchema, exclude_none=True)
 def get_doctor(request, doctor_id: UUID):
     """Информация о враче по ID. 404 если врач неактивен."""
     return get_object_or_404(_doctors(), pk=doctor_id)

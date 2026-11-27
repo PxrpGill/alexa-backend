@@ -7,7 +7,49 @@ from pytils.translit import slugify as t_slugify
 from apps.common.slugs import SLUG_BASE_MAX_LENGTH
 
 
-# Create your models here.
+class PagesModel(models.Model):
+    id = models.UUIDField(
+        unique=True,
+        primary_key=True,
+        verbose_name="Идентификатор страницы",
+        default=uuid.uuid4,
+        editable=False,
+    )
+    slug = models.SlugField(
+        max_length=255,
+        unique=True,
+        verbose_name="Текстовый идентификатор страницы",
+        blank=True,
+    )
+    name = models.CharField(
+        max_length=255, unique=True, editable=True, verbose_name="Название страницы"
+    )
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            base = (
+                slugify(t_slugify(self.name))[:SLUG_BASE_MAX_LENGTH]
+                or f"branch-{uuid.uuid4().hex[:8]}"
+            )
+            slug = base
+            counter = 1
+
+            while BranchModel.objects.filter(slug=slug).exclude(pk=self.pk).exists():
+                slug = f"{base}-{counter}"
+                counter += 1
+
+            self.slug = slug
+
+        return super().save(*args, **kwargs)
+
+    class Meta:
+        verbose_name = "Страница сайта"
+        verbose_name_plural = "Список страниц сайта"
+
+
 class BranchModel(models.Model):
     id = models.UUIDField(
         unique=True,
@@ -47,5 +89,5 @@ class BranchModel(models.Model):
         return super().save(*args, **kwargs)
 
     class Meta:
-        verbose_name = "Список филиалов"
+        verbose_name = "Филиал"
         verbose_name_plural = "Список филиалов"

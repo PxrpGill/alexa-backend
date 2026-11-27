@@ -4,6 +4,7 @@ import tempfile
 from django.test import Client, TestCase, override_settings
 
 from apps.common.test_utils import make_test_image
+from apps.branch.models import PagesModel
 from apps.doctors.models import (
     AboutDoctorTab,
     AboutDoctorTabContent,
@@ -44,7 +45,7 @@ class DoctorApiTest(TestCase):
         )
 
     def test_detail_shape(self):
-        response = self.client.get(f'/api/v1/doctors/{self.doctor.pk}/')
+        response = self.client.get(f'/api/v1/doctors/{self.doctor.pk}')
         self.assertEqual(response.status_code, 200)
 
         payload = response.json()
@@ -90,7 +91,7 @@ class DoctorApiTest(TestCase):
             doctor=self.doctor, slug='empty', title='Без пунктов',
         )
 
-        payload = self.client.get(f'/api/v1/doctors/{self.doctor.pk}/').json()
+        payload = self.client.get(f'/api/v1/doctors/{self.doctor.pk}').json()
 
         keys = [tab['tabKey'] for tab in payload['aboutEmployee']['tabs']]
         self.assertNotIn('empty', keys)
@@ -99,7 +100,7 @@ class DoctorApiTest(TestCase):
     def test_doctor_without_about_has_no_block(self):
         self.doctor.doctor_informations.all().delete()
 
-        payload = self.client.get(f'/api/v1/doctors/{self.doctor.pk}/').json()
+        payload = self.client.get(f'/api/v1/doctors/{self.doctor.pk}').json()
 
         self.assertNotIn('aboutEmployee', payload)
 
@@ -108,20 +109,20 @@ class DoctorApiTest(TestCase):
         self.doctor.save()
 
         self.assertEqual(
-            self.client.get(f'/api/v1/doctors/{self.doctor.pk}/').status_code, 404
+            self.client.get(f'/api/v1/doctors/{self.doctor.pk}').status_code, 404
         )
-        self.assertEqual(self.client.get('/api/v1/doctors/').json(), [])
+        self.assertEqual(self.client.get('/api/v1/doctors').json(), [])
 
     def test_detail_returns_requested_doctor(self):
         other = Doctor.objects.create(full_name='Петров Пётр Петрович')
 
-        payload = self.client.get(f'/api/v1/doctors/{other.pk}/').json()
+        payload = self.client.get(f'/api/v1/doctors/{other.pk}').json()
 
         self.assertEqual(payload['id'], str(other.pk))
         self.assertEqual(payload['fullname'], 'Петров Пётр Петрович')
 
     def test_list_shape(self):
-        response = self.client.get('/api/v1/doctors/')
+        response = self.client.get('/api/v1/doctors')
         self.assertEqual(response.status_code, 200)
 
         payload = response.json()
@@ -129,6 +130,53 @@ class DoctorApiTest(TestCase):
         self.assertEqual(payload[0]['fullname'], self.doctor.full_name)
         self.assertEqual(
             payload[0]['aboutEmployee']['tabs'][0]['tabKey'], 'education',
+        )
+
+
+class DoctorPageFilterTest(TestCase):
+    """?page_slug фильтрует список врачей по привязанной странице сайта."""
+
+    def setUp(self):
+        self.client = Client()
+        self.home = PagesModel.objects.create(name='Главная')
+        self.children = PagesModel.objects.create(name='Детская стоматология')
+        self.on_home = Doctor.objects.create(full_name='Тарасова Ярослава Игоревна')
+        self.on_children = Doctor.objects.create(full_name='Петров Пётр Петрович')
+        self.on_both = Doctor.objects.create(full_name='Сидорова Анна Сергеевна')
+        self.on_home.pages.add(self.home)
+        self.on_children.pages.add(self.children)
+        self.on_both.pages.add(self.home, self.children)
+
+    def _names(self, query):
+        response = self.client.get(f'/api/v1/doctors?{query}')
+        self.assertEqual(response.status_code, 200)
+        return [item['fullname'] for item in response.json()]
+
+    def test_filters_by_page_slug(self):
+        self.assertEqual(
+            self._names(f'page_slug={self.children.slug}'),
+            ['Петров Пётр Петрович', 'Сидорова Анна Сергеевна'],
+        )
+
+    def test_doctor_may_belong_to_several_pages(self):
+        self.assertEqual(
+            self._names(f'page_slug={self.home.slug}'),
+            ['Сидорова Анна Сергеевна', 'Тарасова Ярослава Игоревна'],
+        )
+
+    def test_without_page_slug_returns_all(self):
+        self.assertEqual(len(self._names('')), 3)
+
+    def test_unknown_page_slug_gives_empty_list(self):
+        self.assertEqual(self._names('page_slug=net-takoy-stranitsyi'), [])
+
+    def test_inactive_doctor_is_hidden(self):
+        self.on_children.is_active = False
+        self.on_children.save()
+
+        self.assertEqual(
+            self._names(f'page_slug={self.children.slug}'),
+            ['Сидорова Анна Сергеевна'],
         )
 
 
@@ -178,7 +226,7 @@ class AboutDoctorTabSlugTest(TestCase):
             doctor=self.doctor, tab=tab, title='ЧГУ', year=2022,
         )
 
-        payload = self.client.get(f'/api/v1/doctors/{self.doctor.pk}/').json()
+        payload = self.client.get(f'/api/v1/doctors/{self.doctor.pk}').json()
 
         self.assertEqual(
             payload['aboutEmployee']['tabs'],
@@ -207,7 +255,7 @@ class DoctorAccreditationTest(TestCase):
                 doctor=self.doctor, photo=make_test_image(name=name),
             )
 
-        payload = self.client.get(f'/api/v1/doctors/{self.doctor.pk}/').json()
+        payload = self.client.get(f'/api/v1/doctors/{self.doctor.pk}').json()
 
         pictures = payload['accreditation']
         self.assertEqual(len(pictures), 2)
@@ -222,11 +270,11 @@ class DoctorAccreditationTest(TestCase):
             doctor=self.doctor, photo=make_test_image(name='accreditation.jpg'),
         )
 
-        payload = self.client.get(f'/api/v1/doctors/{self.doctor.pk}/').json()
+        payload = self.client.get(f'/api/v1/doctors/{self.doctor.pk}').json()
 
         self.assertEqual(len(payload['accreditation']), 1)
 
     def test_no_accreditation_gives_empty_array(self):
-        payload = self.client.get(f'/api/v1/doctors/{self.doctor.pk}/').json()
+        payload = self.client.get(f'/api/v1/doctors/{self.doctor.pk}').json()
 
         self.assertEqual(payload['accreditation'], [])

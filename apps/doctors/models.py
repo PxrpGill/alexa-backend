@@ -5,6 +5,7 @@ from uuid import uuid4
 
 from apps.common.mixins import ImageVariantsMixin
 from apps.common.slugs import SLUG_BASE_MAX_LENGTH
+from apps.branch.models import PagesModel
 from django.core.validators import MinValueValidator
 
 
@@ -151,6 +152,8 @@ class Doctor(ImageVariantsMixin, models.Model):
         verbose_name="Фото (мобильная версия)",
     )
     is_active = models.BooleanField(default=True, verbose_name="Активен на сайте")
+
+    pages = models.ManyToManyField(PagesModel, verbose_name="Привязка к страницам сайта", related_name="doctors")
 
     IMAGE_VARIANT_FIELDS = ["photo", "photo_mobile"]
 
