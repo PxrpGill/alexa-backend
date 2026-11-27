@@ -126,9 +126,14 @@ class CuratorsSectionModel(models.Model, ImageVariantsMixin):
         max_length=255, verbose_name="Заголовок секции", blank=True, null=True
     )
     description = models.TextField(
-        verbose_name="Описание секции", help_text="Идет после контента"
+        verbose_name="Описание секции",
+        help_text="Идет после контента",
+        null=True,
+        blank=True,
     )
-    content = CKEditor5Field(config_name="blog_content", verbose_name="Контент")
+    content = CKEditor5Field(
+        config_name="blog_content", verbose_name="Контент", null=True, blank=True
+    )
 
     IMAGE_VARIANT_FIELDS = ["poster", "poster_mobile"]
 
@@ -142,15 +147,19 @@ class CuratorsSectionModel(models.Model, ImageVariantsMixin):
         verbose_name = "Секция «Кураторы»"
         verbose_name_plural = "Секция «Кураторы»"
 
-    def __str__():
+    def __str__(self):
         return "Секция «Кураторы»"
 
 
 class CtaSectionModel(models.Model):
     """CTA секция"""
 
-    title = CKEditor5Field(config_name="blog_content", verbose_name="Заголовок")
-    description = CKEditor5Field(config_name="blog_content", verbose_name="Описание")
+    title = CKEditor5Field(
+        config_name="blog_content", verbose_name="Заголовок", null=True, blank=True
+    )
+    description = CKEditor5Field(
+        config_name="blog_content", verbose_name="Описание", null=True, blank=True
+    )
 
     page = models.OneToOneField(
         LandyshevayaMainPageModel,

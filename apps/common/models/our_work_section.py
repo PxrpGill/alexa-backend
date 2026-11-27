@@ -24,6 +24,8 @@ class AbstractOurWorkImageGallery(models.Model, ImageVariantsMixin):
         verbose_name="Размер обертки изображения",
         choices=IMAGE_SIZE_VARIANTS,
         default=IMAGE_SIZE_VARIANTS["standard"],
+        null=True,
+        blank=True,
     )
 
     class Meta:
