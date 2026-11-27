@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.text import slugify
 from pytils.translit import slugify as t_slugify
@@ -73,6 +74,21 @@ class AboutDoctorTabContent(models.Model):
 
     def __str__(self):
         return self.title
+
+    def clean(self):
+        super().clean()
+        # Раздел принадлежит конкретному сотруднику: пункт нельзя привязать
+        # к разделу другого врача.
+        if self.tab_id and self.doctor_id and self.tab.doctor_id != self.doctor_id:
+            raise ValidationError({"tab": "Раздел принадлежит другому сотруднику."})
+
+    def save(self, *args, **kwargs):
+        # doctor — денормализация tab.doctor, держим их согласованными,
+        # чтобы пункт не оказался у одного врача, а раздел — у другого.
+        if self.tab_id:
+            self.doctor_id = self.tab.doctor_id
+
+        return super().save(*args, **kwargs)
 
 
 class AboutDoctorTab(models.Model):
