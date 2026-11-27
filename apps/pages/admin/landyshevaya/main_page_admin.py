@@ -10,8 +10,36 @@ from ...models.landyshevaya.main_page_models import (
     TitleDescriptionSlideGalleryModel,
     TitleDescriptionSlideModel,
     TitleDescriptionSlidersSectionModel,
+    OurWorkSectionModel,
+    OurWorkImageGalleryModel,
+    FaqFactoidsModel,
+    FaqSectionModel,
 )
 from ..initial_admin import SingletonModelAdmin
+
+
+class FaqFactoidsAdmin(NestedStackedInline):
+    model = FaqFactoidsModel
+    extra = 1
+
+
+class FaqSectionAdmin(NestedStackedInline):
+    model = FaqSectionModel
+    extra = 1
+    max = 1
+    inlines = [FaqFactoidsAdmin]
+
+
+class OurWorkSectionGalleyAdmin(NestedStackedInline):
+    model = OurWorkImageGalleryModel
+    extra = 1
+
+
+class OurWorkSectionAdmin(NestedStackedInline):
+    model = OurWorkSectionModel
+    extra = 1
+    max = 1
+    inlines = [OurWorkSectionGalleyAdmin]
 
 
 class TitleDescriptionSlideGalleryAdmin(NestedStackedInline):
@@ -86,6 +114,8 @@ class LandyshevayaMainPageAdmin(NestedModelAdmin, SingletonModelAdmin):
         CuratorsSectionInline,
         CtaSectionInline,
         TitleDescriptionSlidersSectionAdmin,
+        OurWorkSectionAdmin,
+        FaqSectionAdmin
     ]
 
     def get_fieldsets(self, request, obj=None):

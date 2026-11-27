@@ -12,6 +12,11 @@ from apps.common.models.title_description_slider import (
     AbstractTitleDescriptionSliderModel,
     AbstractTitleDescriptionSlidersSectionModel,
 )
+from apps.common.models.our_work_section import (
+    AbstractOurWorkImageGallery,
+    AbstractOurWorkSection,
+)
+from apps.common.models.faq_section import AbstractFaqFactoids, AbstractFaqSection
 
 
 class LandyshevayaMainPageModel(SingletonModel):
@@ -185,4 +190,30 @@ class TitleDescriptionSlideGalleryModel(AbstractTitleDescriptionSliderGallery):
 
     slider = models.ForeignKey(
         TitleDescriptionSlideModel, on_delete=models.CASCADE, null=True, blank=True
+    )
+
+
+class OurWorkSectionModel(AbstractOurWorkSection):
+    """Секция «Наши работы»"""
+
+    page = models.OneToOneField(
+        LandyshevayaMainPageModel, on_delete=models.CASCADE, null=True, blank=True
+    )
+
+
+class OurWorkImageGalleryModel(AbstractOurWorkImageGallery):
+    section = models.ForeignKey(
+        OurWorkSectionModel, on_delete=models.CASCADE, null=True, blank=True
+    )
+
+
+class FaqSectionModel(AbstractFaqSection):
+    page = models.OneToOneField(
+        LandyshevayaMainPageModel, on_delete=models.CASCADE, null=True, blank=True
+    )
+
+
+class FaqFactoidsModel(AbstractFaqFactoids):
+    section = models.ForeignKey(
+        FaqSectionModel, on_delete=models.CASCADE, null=True, blank=True
     )
