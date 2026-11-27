@@ -192,11 +192,6 @@ FRONTEND_URL = config("FRONTEND_URL", default="")
 
 CKEDITOR_5_CONFIGS = {
     "default": {
-        "ui": {
-            "viewportOffset": {
-                "top": 70,
-            }
-        },
         "toolbar": {
             "items": [
                 "heading",
@@ -250,6 +245,16 @@ CKEDITOR_5_CONFIGS = {
         },
     },
 }
+
+# Тулбар любого CKEditor «прилипает» к верху окна. CKEditor делает это сам
+# (position: fixed у .ck-sticky-panel__content_sticky), поэтому прилипание
+# работает и внутри Unfold-обёртки .form-rows с overflow: hidden, где CSS
+# position: sticky бесполезен. top: 0 — у Unfold нет залипающей шапки
+# (в jazzmin было 70px). Цикл задаёт значение по умолчанию и новым конфигам.
+for _editor_config in CKEDITOR_5_CONFIGS.values():
+    _editor_config.setdefault("ui", {}).setdefault("viewportOffset", {}).setdefault(
+        "top", 0
+    )
 
 CKEDITOR_5_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
 

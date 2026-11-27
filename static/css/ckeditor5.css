@@ -1,9 +1,22 @@
-.ck-editor__top {
-    position: sticky;
-    top: 0;
-    z-index: 10;
+/* Прилипающую панель инструментов делает сам CKEditor (.ck-sticky-panel__content
+   становится position: fixed), и это работает для всех редакторов по умолчанию.
+   Здесь эти правила были отключены, потому что CSS position: sticky бесполезен
+   внутри Unfold-обёртки .form-rows с overflow: hidden — тулбар просто не лип.
+   Смещение сверху задаётся через ui.viewportOffset в CKEDITOR_5_CONFIGS. */
+
+/* Unfold включает тёмную тему, и область редактирования наследует светлый цвет
+   текста от body. Сам CKEditor при этом рисует поле на белом фоне — светлый
+   текст на белом почти не виден. Задаём цвет содержимого явно.
+   Inline-стили редактора (например, плагин цвета текста) остаются в силе:
+   они применяются к вложенным span'ам и перебивают наследование. */
+.ck.ck-editor__editable,
+.ck.ck-editor__editable.ck-focused,
+.ck.ck-editor .ck-content,
+.ck.fullscreen-mode .ck.ck-content.ck-editor__editable {
+    color: #000;
 }
 
-.ck.ck-sticky-panel__content {
-    position: static !important;
+/* Плейсхолдер пустого поля тоже должен читаться на белом. */
+.ck.ck-editor__editable .ck-placeholder::before {
+    color: #6b7280;
 }
