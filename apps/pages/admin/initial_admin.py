@@ -18,15 +18,10 @@ class SingletonAddPermissionMixin:
 
 
 class SingletonModelAdmin(SingletonAddPermissionMixin, ModelAdmin):
-    pass
+    """Модель-одиночка в Unfold-админке.
 
-
-class NestedSingletonModelAdmin(SingletonAddPermissionMixin, admin.ModelAdmin):
-    """База для страниц на django-nested-admin.
-
-    Unfold не умеет вложенные инлайны глубже двух уровней, поэтому главная
-    Ландышевой остаётся на nested-admin и наследуется от стокового ModelAdmin:
-    его миксины конфликтуют с nested-формсетами.
+    Unfold умеет один уровень вложенных инлайнов (инлайн внутри инлайна);
+    более глубокие уровни выносятся в отдельные разделы админки.
     """
 
 

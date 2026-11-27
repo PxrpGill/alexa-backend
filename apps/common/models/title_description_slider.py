@@ -30,7 +30,10 @@ class AbstractTitleDescriptionSliderModel(models.Model):
         max_length=255, verbose_name="Заголовок слайдера", blank=True, null=True
     )
     description = CKEditor5Field(
-        config_name="blog_content", verbose_name="Описание слайдера"
+        config_name="blog_content",
+        verbose_name="Описание слайдера",
+        null=True,
+        blank=True,
     )
 
     class Meta:

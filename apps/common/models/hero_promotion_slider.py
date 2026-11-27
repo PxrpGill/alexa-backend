@@ -6,7 +6,9 @@ from apps.common.mixins import ImageVariantsMixin
 
 class AbstractHeroSlideDescriptionCard(models.Model):
     title = models.TextField(verbose_name="Заголовок", blank=True, null=True)
-    content = CKEditor5Field(config_name="blog_content", verbose_name="Контент")
+    content = CKEditor5Field(
+        config_name="blog_content", verbose_name="Контент", null=True, blank=True
+    )
 
     def __str__(self):
         return self.title or "Карточка слайда"
@@ -49,6 +51,8 @@ class AbstractHeroPromotionSlideModel(ImageVariantsMixin, models.Model):
         choices=SLIDE_TEXT_THEME_VARIANTS,
         default="light",
         verbose_name="Тема текста",
+        null=True,
+        blank=True,
     )
 
     def __str__(self):
