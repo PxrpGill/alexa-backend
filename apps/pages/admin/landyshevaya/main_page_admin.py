@@ -41,7 +41,7 @@ class OurWorkSectionGalleyInline(StackedInline):
 
 class OurWorkSectionInline(StackedInline):
     model = OurWorkSectionModel
-    extra = 1
+    extra = 0
     max_num = 1
     inlines = [OurWorkSectionGalleyInline]
 
