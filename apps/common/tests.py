@@ -22,7 +22,7 @@ from apps.common.max import (
     queue_max_notification,
     send_max_message,
 )
-from apps.common.schemas import build_picture_format
+from apps.common.schemas.default_schemas import build_picture_format
 from apps.common.tasks import generate_image_variants_task, send_max_notification_task
 from apps.common.test_utils import FieldFileStub, make_test_image
 from apps.common.throttling import get_client_ip, throttle
