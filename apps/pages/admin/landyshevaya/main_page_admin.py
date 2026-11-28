@@ -55,7 +55,7 @@ class TitleDescriptionSlideInline(StackedInline):
     """
 
     model = TitleDescriptionSlideModel
-    extra = 1
+    extra = 0
     readonly_fields = ["gallery_link"]
 
     @admin.display(description="Галерея слайда")
