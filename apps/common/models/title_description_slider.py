@@ -42,7 +42,7 @@ class AbstractTitleDescriptionSliderModel(models.Model):
         verbose_name_plural = "Слайдер «Наши преимущества»"
 
     def __str__(self):
-        return "Слайдер «Наши преимущества»"
+        return self.title or "Слайдер «Наши преимущества»"
 
 
 class AbstractTitleDescriptionSlidersSectionModel(models.Model):
@@ -56,4 +56,4 @@ class AbstractTitleDescriptionSlidersSectionModel(models.Model):
         verbose_name_plural = "Секция слайдеров «Наши преимущества»"
 
     def __str__(self):
-        return "Секция слайдеров «Наши преимущества»"
+        return self.title or "Секция слайдеров «Наши преимущества»"
