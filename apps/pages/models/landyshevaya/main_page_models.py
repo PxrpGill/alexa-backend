@@ -63,11 +63,6 @@ class HeroPromotionSlideModel(AbstractHeroPromotionSlideModel):
 class HeroPromotionSlideDescriptionCard(AbstractHeroSlideDescriptionCard):
     """Карточка-плашка, которая лежит поверх слайда."""
 
-    BUTTON_TARGET_VARIANTS = (
-        ("_self", "В текущем окне"),
-        ("_blank", "В новом окне"),
-    )
-
     slide = models.OneToOneField(
         HeroPromotionSlideModel,
         on_delete=models.CASCADE,
@@ -75,27 +70,6 @@ class HeroPromotionSlideDescriptionCard(AbstractHeroSlideDescriptionCard):
         null=True,
         blank=True,
         verbose_name="Слайд",
-    )
-    button_title = models.CharField(
-        max_length=255,
-        blank=True,
-        verbose_name="Текст кнопки",
-    )
-    button_href = models.CharField(
-        max_length=500,
-        blank=True,
-        verbose_name="Ссылка кнопки",
-    )
-    button_target = models.CharField(
-        max_length=6,
-        choices=BUTTON_TARGET_VARIANTS,
-        default="_self",
-        blank=True,
-        verbose_name="Открывать кнопку",
-    )
-    is_open_feedback_modal = models.BooleanField(
-        default=False,
-        verbose_name="Кнопка открывает форму записи",
     )
 
     class Meta(AbstractHeroSlideDescriptionCard.Meta):

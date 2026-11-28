@@ -1,7 +1,10 @@
 from ninja import Schema
 from datetime import date
 from typing import Optional
-from apps.common.schemas import PictureFormatSchema, build_picture_format
+from apps.common.schemas.default_schemas import (
+    PictureFormatSchema,
+    build_picture_format,
+)
 from apps.promotions.content import has_content
 
 

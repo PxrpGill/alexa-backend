@@ -4,7 +4,10 @@ from typing import Annotated, Literal, Optional, Union
 from ninja import Schema
 from pydantic import Field
 
-from apps.common.schemas import PictureFormatSchema, build_picture_format
+from apps.common.schemas.default_schemas import (
+    PictureFormatSchema,
+    build_picture_format,
+)
 
 from .media import get_mobile_copy
 from .models import StoryItem
