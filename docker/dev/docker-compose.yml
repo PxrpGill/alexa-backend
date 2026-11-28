@@ -34,6 +34,10 @@ services:
       - .env.dev
     environment:
       DB_HOST: db
+      # В .env.dev адреса Redis — localhost (для запуска вне Docker), а внутри
+      # compose сеть живёт в отдельном сервисе redis.
+      CELERY_BROKER_URL: redis://redis:6379/0
+      REDIS_URL: redis://redis:6379/1
       DJANGO_SETTINGS_MODULE: config.settings.dev
     depends_on:
       - db
@@ -51,6 +55,8 @@ services:
       - .env.dev
     environment:
       DB_HOST: db
+      CELERY_BROKER_URL: redis://redis:6379/0
+      REDIS_URL: redis://redis:6379/1
       DJANGO_SETTINGS_MODULE: config.settings.dev
     depends_on:
       - db

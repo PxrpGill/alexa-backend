@@ -4,7 +4,7 @@ from django_ckeditor_5.fields import CKEditor5Field
 from apps.common.mixins import ImageVariantsMixin
 
 
-class AbstractTitleDescriptionSliderGallery(models.Model, ImageVariantsMixin):
+class AbstractTitleDescriptionSliderGallery(ImageVariantsMixin, models.Model):
     poster = models.ImageField(
         upload_to="main-page/title-description-slider/",
         blank=True,

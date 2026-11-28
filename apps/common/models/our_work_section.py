@@ -3,7 +3,7 @@ from django.db import models
 from apps.common.mixins import ImageVariantsMixin
 
 
-class AbstractOurWorkImageGallery(models.Model, ImageVariantsMixin):
+class AbstractOurWorkImageGallery(ImageVariantsMixin, models.Model):
     IMAGE_SIZE_VARIANTS = {
         "standard": "Стандартное (маленькое)",
         "big": "Вытянутое (вертикальное)",

@@ -1,7 +1,5 @@
 from django.db import models
-from django_ckeditor_5.fields import CKEditor5Field
 
-from apps.common.mixins import ImageVariantsMixin
 from apps.common.models import SingletonModel
 from apps.common.models.hero_promotion_slider import (
     AbstractHeroPromotionSlideModel,
@@ -17,6 +15,8 @@ from apps.common.models.our_work_section import (
     AbstractOurWorkSection,
 )
 from apps.common.models.faq_section import AbstractFaqFactoids, AbstractFaqSection
+from apps.common.models.cta_section import AbstractCtaSectionModel
+from apps.common.models.curators_section import AbstractCuratorsSectionModel
 
 
 class LandyshevayaMainPageModel(SingletonModel):
@@ -61,8 +61,6 @@ class HeroPromotionSlideModel(AbstractHeroPromotionSlideModel):
 
 
 class HeroPromotionSlideDescriptionCard(AbstractHeroSlideDescriptionCard):
-    """Карточка-плашка, которая лежит поверх слайда."""
-
     slide = models.OneToOneField(
         HeroPromotionSlideModel,
         on_delete=models.CASCADE,
@@ -72,94 +70,30 @@ class HeroPromotionSlideDescriptionCard(AbstractHeroSlideDescriptionCard):
         verbose_name="Слайд",
     )
 
-    class Meta(AbstractHeroSlideDescriptionCard.Meta):
-        verbose_name = "Карточка слайда"
-        verbose_name_plural = "Карточки слайдов"
 
-    def __str__(self):
-        return self.title or "Карточка слайда"
-
-
-class CuratorsSectionModel(models.Model, ImageVariantsMixin):
-    """Секция кураторов"""
-
-    poster = models.ImageField(
-        upload_to="main-page/curators-section/", blank=True, verbose_name="Баннер"
-    )
-    poster = models.ImageField(
-        upload_to="main-page/curators-section/",
-        blank=True,
-        verbose_name="Изображение кураторов",
-    )
-    poster_mobile = models.ImageField(
-        upload_to="main-page/curators-section/",
-        blank=True,
-        verbose_name="Изображение кураторов (мобильная версия)",
-    )
-    title = models.CharField(
-        max_length=255, verbose_name="Заголовок секции", blank=True, null=True
-    )
-    description = models.TextField(
-        verbose_name="Описание секции",
-        help_text="Идет после контента",
-        null=True,
-        blank=True,
-    )
-    content = CKEditor5Field(
-        config_name="blog_content", verbose_name="Контент", null=True, blank=True
-    )
-
-    IMAGE_VARIANT_FIELDS = ["poster", "poster_mobile"]
-
+class CuratorsSectionModel(AbstractCuratorsSectionModel):
     page = models.OneToOneField(
         LandyshevayaMainPageModel,
         on_delete=models.CASCADE,
         verbose_name="Привязка к странице",
     )
 
-    class Meta:
-        verbose_name = "Секция «Кураторы»"
-        verbose_name_plural = "Секция «Кураторы»"
 
-    def __str__(self):
-        return "Секция «Кураторы»"
-
-
-class CtaSectionModel(models.Model):
-    """CTA секция"""
-
-    title = CKEditor5Field(
-        config_name="blog_content", verbose_name="Заголовок", null=True, blank=True
-    )
-    description = CKEditor5Field(
-        config_name="blog_content", verbose_name="Описание", null=True, blank=True
-    )
-
+class CtaSectionModel(AbstractCtaSectionModel):
     page = models.OneToOneField(
         LandyshevayaMainPageModel,
         on_delete=models.CASCADE,
         verbose_name="Привязка к странице",
     )
-
-    class Meta:
-        verbose_name = "CTA"
-        verbose_name_plural = "CTA"
-
-    def __str__(self):
-        return "Контент CTA"
 
 
 class TitleDescriptionSlidersSectionModel(AbstractTitleDescriptionSlidersSectionModel):
-    """Секция слайдеров «Наши преимущества»"""
-
     page = models.OneToOneField(
         LandyshevayaMainPageModel, on_delete=models.CASCADE, null=True, blank=True
     )
 
 
 class TitleDescriptionSlideModel(AbstractTitleDescriptionSliderModel):
-    """Слайдер «Наши преимущества»"""
-
     section = models.ForeignKey(
         TitleDescriptionSlidersSectionModel,
         on_delete=models.CASCADE,
@@ -169,16 +103,12 @@ class TitleDescriptionSlideModel(AbstractTitleDescriptionSliderModel):
 
 
 class TitleDescriptionSlideGalleryModel(AbstractTitleDescriptionSliderGallery):
-    """Галерея изображений слайдера «Наши преимущества»"""
-
     slider = models.ForeignKey(
         TitleDescriptionSlideModel, on_delete=models.CASCADE, null=True, blank=True
     )
 
 
 class OurWorkSectionModel(AbstractOurWorkSection):
-    """Секция «Наши работы»"""
-
     page = models.OneToOneField(
         LandyshevayaMainPageModel, on_delete=models.CASCADE, null=True, blank=True
     )
