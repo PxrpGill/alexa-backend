@@ -7,7 +7,10 @@ from .models import DMS
 from .schemas import DMSCreateSchema
 from ..common.leads import build_page_url
 from ..common.throttling import throttle_lead_form
-from ..common.schemas import SuccessResponseMessageSchema, ErrorResponseMessageSchema
+from ..common.schemas.default_schemas import (
+    SuccessResponseMessageSchema,
+    ErrorResponseMessageSchema,
+)
 
 router = Router(tags=["Запись на приём"])
 

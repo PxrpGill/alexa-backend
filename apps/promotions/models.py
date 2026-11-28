@@ -41,6 +41,9 @@ class Promotion(ImageVariantsMixin, models.Model):
     )
     starts_at = models.DateField(verbose_name="Начало")
     ends_at = models.DateField(null=True, blank=True, verbose_name="Окончание")
+    order = models.PositiveIntegerField(
+        default=0, db_index=True, verbose_name="Порядок"
+    )
     is_active = models.BooleanField(default=True, verbose_name="Активна")
 
     IMAGE_VARIANT_FIELDS = ["banner", "banner_mobile"]
@@ -48,7 +51,9 @@ class Promotion(ImageVariantsMixin, models.Model):
     class Meta:
         verbose_name = "Акция"
         verbose_name_plural = "Акции"
-        ordering = ["-starts_at"]
+        # Порядок задаётся drag-n-drop в админке; при равных значениях —
+        # как раньше, от новых акций к старым.
+        ordering = ["order", "-starts_at", "id"]
 
     def save(self, *args, **kwargs):
         if not self.slug:

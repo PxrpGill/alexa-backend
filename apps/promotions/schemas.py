@@ -1,7 +1,11 @@
 from ninja import Schema
 from datetime import date
 from typing import Optional
-from apps.common.schemas import PictureFormatSchema, build_picture_format
+from pydantic import model_serializer
+from apps.common.schemas.default_schemas import (
+    PictureFormatSchema,
+    build_picture_format,
+)
 from apps.promotions.content import has_content
 
 
@@ -28,8 +32,8 @@ class PromotionRequestSchema(Schema):
 
 
 class PromotionDetailSectionSchema(Schema):
-    title: str
-    content: str
+    title: Optional[str] = None
+    content: Optional[str] = None
 
 
 class PromotionFeedbackFormSchema(Schema):
@@ -49,7 +53,7 @@ class PromotionFeedbackFormSchema(Schema):
 class PromotionDetailSchema(Schema):
     slug: str
     hero: PromotionSchema
-    detail: PromotionDetailSectionSchema
+    detail: Optional[PromotionDetailSectionSchema] = None
     detail_content: Optional[str] = None
     form: Optional[PromotionFeedbackFormSchema] = None
 
@@ -59,7 +63,15 @@ class PromotionDetailSchema(Schema):
 
     @staticmethod
     def resolve_detail(obj):
-        return {"title": obj.detail_title, "content": obj.detail_description}
+        # CKEditor оставляет в пустых полях разметку вроде "<p>&nbsp;</p>",
+        # поэтому пустоту проверяем через has_content, а не по truthiness.
+        title = obj.detail_title if has_content(obj.detail_title) else None
+        content = (
+            obj.detail_description if has_content(obj.detail_description) else None
+        )
+        if title is None and content is None:
+            return None
+        return {"title": title, "content": content}
 
     @staticmethod
     def resolve_form(obj):
@@ -67,7 +79,26 @@ class PromotionDetailSchema(Schema):
 
     @staticmethod
     def resolve_detail_content(obj):
-        return obj.detail_content or None
+        return obj.detail_content if has_content(obj.detail_content) else None
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_sections(self, handler):
+        """Не отдаём незаполненные секции вовсе, а не как null/пустые строки."""
+        data = handler(self)
+
+        detail = data.get("detail")
+        if isinstance(detail, dict):
+            detail = {key: value for key, value in detail.items() if value is not None}
+        if detail:
+            data["detail"] = detail
+        else:
+            data.pop("detail", None)
+
+        if data.get("detail_content") is None:
+            data.pop("detail_content", None)
+
+        return data
+
 
 
 def _non_empty_rows(rows):

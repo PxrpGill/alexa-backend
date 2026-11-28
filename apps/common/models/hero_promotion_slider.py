@@ -5,9 +5,35 @@ from apps.common.mixins import ImageVariantsMixin
 
 
 class AbstractHeroSlideDescriptionCard(models.Model):
+    BUTTON_TARGET_VARIANTS = (
+        ("_self", "В текущем окне"),
+        ("_blank", "В новом окне"),
+    )
+
     title = models.TextField(verbose_name="Заголовок", blank=True, null=True)
     content = CKEditor5Field(
         config_name="blog_content", verbose_name="Контент", null=True, blank=True
+    )
+    button_title = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name="Текст кнопки",
+    )
+    button_href = models.CharField(
+        max_length=500,
+        blank=True,
+        verbose_name="Ссылка кнопки",
+    )
+    button_target = models.CharField(
+        max_length=6,
+        choices=BUTTON_TARGET_VARIANTS,
+        default="_self",
+        blank=True,
+        verbose_name="Открывать кнопку",
+    )
+    is_open_feedback_modal = models.BooleanField(
+        default=False,
+        verbose_name="Кнопка открывает форму записи",
     )
 
     def __str__(self):

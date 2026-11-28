@@ -5,7 +5,10 @@ from django.shortcuts import get_object_or_404
 from .models import Promotion, PromotionRequests
 from .schemas import PromotionSchema, PromotionDetailSchema, PromotionRequestSchema
 from ..common.throttling import throttle_lead_form
-from ..common.schemas import SuccessResponseMessageSchema, ErrorResponseMessageSchema
+from ..common.schemas.default_schemas import (
+    SuccessResponseMessageSchema,
+    ErrorResponseMessageSchema,
+)
 
 router = Router(tags=["Акции"])
 

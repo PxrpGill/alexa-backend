@@ -5,7 +5,10 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from ninja import File, Form, Router, UploadedFile
 
-from apps.common.schemas import ErrorResponseMessageSchema, SuccessResponseMessageSchema
+from apps.common.schemas.default_schemas import (
+    ErrorResponseMessageSchema,
+    SuccessResponseMessageSchema,
+)
 from apps.common.throttling import throttle
 
 from .models import Application, Vacancy, VacancyCategory
