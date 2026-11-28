@@ -1,5 +1,9 @@
-DEV  = docker-compose -f docker/dev/docker-compose.yml
-PROD = docker-compose -f docker/prod/docker-compose.yml
+# Локально часто стоит только плагин `docker compose`, в CI/на VPS —
+# standalone-бинарник `docker-compose`. Используем то, что доступно.
+COMPOSE = $(shell if command -v docker-compose >/dev/null 2>&1; then echo docker-compose; else echo docker compose; fi)
+
+DEV  = $(COMPOSE) -f docker/dev/docker-compose.yml
+PROD = $(COMPOSE) -f docker/prod/docker-compose.yml
 
 # Прод-цели читают DOCKER_IMAGE и DOMAIN из .env.prod: compose требует их
 # на этапе интерполяции, env_file на этом этапе ещё не применён.
