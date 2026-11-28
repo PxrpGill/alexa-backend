@@ -1,4 +1,5 @@
 from typing import Optional
+
 from ninja import Schema
 
 
@@ -8,5 +9,9 @@ class FaqFactoidSchema(Schema):
 
 
 class FaqSectionSchema(Schema):
-    title: Optional[str]
-    cards: Optional[list[FaqFactoidSchema]]
+    title: Optional[str] = None
+    cards: Optional[list[FaqFactoidSchema]] = None
+
+    @staticmethod
+    def resolve_cards(obj):
+        return obj.faqfactoidsmodel_set.order_by("pk")
