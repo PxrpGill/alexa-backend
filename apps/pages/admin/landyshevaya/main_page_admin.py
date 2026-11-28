@@ -24,7 +24,7 @@ from ..initial_admin import SingletonModelAdmin
 
 class FaqFactoidsInline(StackedInline):
     model = FaqFactoidsModel
-    extra = 1
+    extra = 0
 
 
 class FaqSectionInline(StackedInline):
@@ -41,7 +41,7 @@ class OurWorkSectionGalleyInline(StackedInline):
 
 class OurWorkSectionInline(StackedInline):
     model = OurWorkSectionModel
-    extra = 1
+    extra = 0
     max_num = 1
     inlines = [OurWorkSectionGalleyInline]
 
