@@ -47,11 +47,18 @@ class PromotionRequestFormAdminModel(StackedInline):
 
 @admin.register(Promotion)
 class PromotionAdmin(ModelAdmin):
+    ordering_field = "order"
+    hide_ordering_field = True
     list_display = ["title", "starts_at", "ends_at", "is_active"]
     list_editable = ["is_active"]
     list_filter = ["is_active"]
     search_fields = ["title"]
     inlines = [PromotionRequestFormAdminModel]
+
+    def get_queryset(self, request):
+        # Явный порядок для changelist: drag-n-drop Unfold пересчитывает order
+        # по видимому списку, поэтому сортировка должна совпадать с Meta.ordering.
+        return super().get_queryset(request).order_by("order", "-starts_at", "id")
 
 
 @admin.register(PromotionRequests)

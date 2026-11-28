@@ -71,7 +71,7 @@ class PromotionDetailAPITest(PromotionsBaseTestCase):
             data["detail"]["content"],
             "<p>Консультация, снимок и&nbsp;установка импланта</p>",
         )
-        self.assertIsNone(data["detail_content"])
+        self.assertNotIn("detail_content", data)
         self.assertIsNone(data["form"])
 
     def test_detail_contract_structure(self):
@@ -79,7 +79,7 @@ class PromotionDetailAPITest(PromotionsBaseTestCase):
         data = response.json()
         self.assertEqual(
             set(data.keys()),
-            {"slug", "hero", "detail", "detail_content", "form"},
+            {"slug", "hero", "detail", "form"},
         )
         self.assertEqual(
             set(data["hero"].keys()),
@@ -133,6 +133,29 @@ class PromotionDetailAPITest(PromotionsBaseTestCase):
             "<p>Программа лояльности и&nbsp;бонусы</p>",
         )
 
+    def test_empty_detail_sections_are_omitted(self):
+        """Пустые секции (в т.ч. разметка CKEditor) не отдаются вовсе."""
+        self.promotion.detail_title = ""
+        self.promotion.detail_description = "<p>&nbsp;</p>"
+        self.promotion.detail_content = "<p><br></p>"
+        self.promotion.save()
+        data = self.client.get(f"/api/v1/promotions/{self.promotion.slug}").json()
+        self.assertNotIn("detail", data)
+        self.assertNotIn("detail_content", data)
+
+    def test_detail_section_drops_only_empty_field(self):
+        self.promotion.detail_title = "  "
+        self.promotion.save()
+        data = self.client.get(f"/api/v1/promotions/{self.promotion.slug}").json()
+        self.assertEqual(
+            set(data["detail"].keys()),
+            {"content"},
+        )
+        self.assertEqual(
+            data["detail"]["content"],
+            "<p>Консультация, снимок и&nbsp;установка импланта</p>",
+        )
+
     def test_detail_returns_feedback_form(self):
         PromotionRequestFormModel.objects.create(
             promotion=self.promotion,
@@ -149,6 +172,40 @@ class PromotionDetailAPITest(PromotionsBaseTestCase):
                 "button_text": "Отправить",
             },
         )
+
+
+class PromotionOrderingTest(TestCase):
+    """Порядок отдачи повторяет drag-n-drop в админке (поле order)."""
+
+    def setUp(self):
+        self.client = Client()
+        self.today = timezone.localdate()
+
+    def make(self, title, order, days_ago=0):
+        promotion = Promotion.objects.create(
+            title=title,
+            starts_at=self.today - timedelta(days=days_ago),
+            order=order,
+        )
+        return promotion
+
+    def test_list_follows_order_field(self):
+        # starts_at намеренно противоречит order: сортировать должно по order.
+        third = self.make("Третья", order=2, days_ago=0)
+        first = self.make("Первая", order=0, days_ago=5)
+        second = self.make("Вторая", order=1, days_ago=2)
+
+        slugs = [item["slug"] for item in self.client.get("/api/v1/promotions").json()]
+
+        self.assertEqual(slugs, [first.slug, second.slug, third.slug])
+
+    def test_new_promotion_goes_after_existing_at_equal_order(self):
+        older = self.make("Старая", order=0, days_ago=10)
+        newer = self.make("Новая", order=0, days_ago=0)
+
+        slugs = [item["slug"] for item in self.client.get("/api/v1/promotions").json()]
+
+        self.assertEqual(slugs, [newer.slug, older.slug])
 
 
 class PromotionRouteOrderTest(TestCase):

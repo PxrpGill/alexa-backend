@@ -100,6 +100,8 @@ never sent to the chat (protected personal data) — only an "attached / none" m
   bypasses the renderer. Models store the editor's original text.
 - Blog list endpoint uses custom pagination: query params `page`, `perPage`, `allPages`; response is `PaginatedBlogPostSchema` (`items` + `pagination`), not a plain list.
 - Promotions date filtering uses `timezone.localdate()`; `ends_at__isnull=True` means "ongoing".
+  The list order is the admin drag-n-drop order (`Promotion.order` + Unfold `ordering_field`),
+  with `["order", "-starts_at", "id"]` as the tie-break.
 - Git workflow: feature branches `feat/*` → PR → merge to `main` triggers CI deploy (GHCR image + SSH to VPS). Commit messages in Russian.
 - `apps/vacancies/` is fully implemented (vacancy tree + applications with resume upload, own `validators.py` and IP throttling); `apps/dms/tests.py` and `apps/consultation/tests.py` now cover MAX notifications.
 
