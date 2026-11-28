@@ -24,7 +24,7 @@ from ..initial_admin import SingletonModelAdmin
 
 class FaqFactoidsInline(StackedInline):
     model = FaqFactoidsModel
-    extra = 1
+    extra = 0
 
 
 class FaqSectionInline(StackedInline):
